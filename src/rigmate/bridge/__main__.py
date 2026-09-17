@@ -1,4 +1,4 @@
-"""Entrypoint khởi chạy Bridge Server bằng command: python -m rigmate.bridge"""
+"""Entrypoint to launch the RigMate Local Bridge Server: python -m rigmate.bridge"""
 
 import argparse
 import sys
@@ -11,22 +11,22 @@ from rigmate.providers.antigravity_provider import AntigravityProvider
 def parse_args():
     parser = argparse.ArgumentParser(
         prog="python -m rigmate.bridge",
-        description="Khởi chạy RigMate Local Bridge Server (kết nối Blender với AI Engine)",
+        description="Launch RigMate Local Bridge Server (connecting Blender with AI Engines)",
     )
-    parser.add_argument("--host", default="127.0.0.1", help="Host lắng nghe (mặc định: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8765, help="Port (mặc định: 8765)")
+    parser.add_argument("--host", default="127.0.0.1", help="Listening host (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8765, help="Port (default: 8765)")
     parser.add_argument(
         "--provider",
         choices=["mock", "antigravity"],
         default="mock",
-        help="AI Provider backend (mặc định: mock)",
+        help="AI Provider backend (default: mock)",
     )
-    parser.add_argument("--model", default=None, help="Tên model (tùy chọn)")
+    parser.add_argument("--model", default=None, help="Model name (optional)")
     return parser.parse_args()
 
 
 def main():
-    # Đảm bảo console UTF-8 trên Windows
+    # Ensure UTF-8 output on Windows console
     if sys.platform.startswith("win"):
         try:
             sys.stdout.reconfigure(encoding="utf-8")
@@ -38,7 +38,7 @@ def main():
 
     server = BridgeServer(host=args.host, port=args.port, save_state=True)
 
-    # Cấu hình provider
+    # Provider configuration
     if args.provider == "antigravity":
         model = args.model or "gemini-3.8-flash"
         server.set_provider(AntigravityProvider(model=model))
@@ -51,21 +51,22 @@ def main():
     print("=" * 65)
     print("  RIGMATE LOCAL BRIDGE SERVER (v0.1.0)")
     print("=" * 65)
-    print(f"• Địa chỉ: http://{args.host}:{args.port}")
+    print(f"• Address: http://{args.host}:{args.port}")
     print(f"• AI Provider: {server.current_provider.provider_id} ({server.current_provider.model_name})")
     print(f"• Runtime state file: {state_path}")
-    print(f"• Auth Token: [Đã lưu tự động vào AppData - Tự động nhận diện bởi Blender Add-on]")
-    print(f"• Kiểm tra sức khỏe: http://{args.host}:{args.port}/health")
+    print(f"• Auth Token: [Persisted in local AppData - Auto-discovered by Blender Add-on]")
+    print(f"• Health Check: http://{args.host}:{args.port}/health")
     print("=" * 65)
-    print("Server đang lắng nghe... Bấm Ctrl+C để dừng.")
+    print("Server running... Press Ctrl+C to stop.")
 
     try:
         uvicorn.run(server.app, host=args.host, port=args.port, log_level="info")
     finally:
-        print("\nĐang dọn dẹp runtime state...")
+        print("\nCleaning up runtime state...")
         server.cleanup_state()
-        print("Đã tắt RigMate Bridge an toàn.")
+        print("RigMate Bridge shut down cleanly.")
 
 
 if __name__ == "__main__":
     main()
+

@@ -1,4 +1,5 @@
-"""Module providers của RigMate."""
+"""AI Providers module for RigMate."""
+
 
 from rigmate.providers.base import (
     BaseAIProvider,
