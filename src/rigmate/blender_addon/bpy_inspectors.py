@@ -1,6 +1,6 @@
-"""Trích xuất dữ liệu từ bpy sang Core Models an toàn (hỗ trợ stub khi không có Blender)."""
+"""Extract data safely from bpy to Core Models (supports stub mode when Blender is absent)."""
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from rigmate.core.models import (
     SceneInfo,
     MeshInfo,
@@ -11,7 +11,7 @@ from rigmate.core.models import (
     VertexWeightSummary,
 )
 
-# Thử import bpy an toàn
+# Attempt safe bpy import
 try:
     import bpy  # type: ignore
     import mathutils  # type: ignore
@@ -23,7 +23,7 @@ except ImportError:
 
 
 class BpyInspector:
-    """Đọc dữ liệu bpy từ Main Thread Blender và ánh xạ thành Pydantic Core Models."""
+    """Read bpy scene graph from Blender Main Thread and map into Core Models."""
 
     @staticmethod
     def is_blender_environment() -> bool:
@@ -31,7 +31,7 @@ class BpyInspector:
 
     @classmethod
     def get_scene_info(cls) -> SceneInfo:
-        """Đọc toàn cảnh Scene hiện tại."""
+        """Read overall active scene state."""
         if not HAS_BPY or bpy is None:
             return SceneInfo(
                 active_object_name="Mock_Hunyuan_Character",
@@ -71,8 +71,8 @@ class BpyInspector:
     @classmethod
     def get_selected_context(cls) -> Dict[str, Any]:
         """
-        Thu thập ngữ cảnh GỌN cho vùng chọn (không gửi toàn bộ 50k vertex coordinates).
-        Chỉ thu thập active object và các object đang được chọn.
+        Collect compact context for selected objects (avoids streaming 50k vertex coordinates).
+        Gathers summary metadata for active and selected objects only.
         """
         if not HAS_BPY or bpy is None:
             return {
@@ -123,9 +123,9 @@ class BpyInspector:
 
     @classmethod
     def get_mesh_info(cls, obj_name: str) -> Optional[MeshInfo]:
-        """Đọc thông tin mesh của object cụ thể."""
+        """Read mesh properties of a specific object."""
         if not HAS_BPY or bpy is None:
-            # Dữ liệu mô phỏng Hunyuan 3D khi chạy ngoài Blender
+            # Standalone mock for Hunyuan 3D character mesh
             return MeshInfo(
                 name=obj_name,
                 vertex_count=52400,
@@ -161,7 +161,7 @@ class BpyInspector:
                     target_arm_name = mod.object.name
                 break
 
-        # Đọc transforms
+        # Read object transform
         transform = TransformData(
             location=[float(x) for x in obj.location],
             rotation_euler=[float(x) for x in obj.rotation_euler],
@@ -184,9 +184,9 @@ class BpyInspector:
 
     @classmethod
     def get_armature_info(cls, obj_name: str) -> Optional[ArmatureInfo]:
-        """Đọc thông tin armature và các xương."""
+        """Read armature hierarchy and bone definitions."""
         if not HAS_BPY or bpy is None:
-            # Dữ liệu mô phỏng Meshy armature
+            # Standalone mock for Meshy armature
             bones = {
                 "Hips": BoneInfo(name="Hips", children_names=["Spine", "Thigh.L", "Thigh.R"]),
                 "Spine": BoneInfo(name="Spine", parent_name="Hips", children_names=["Chest"]),
@@ -243,3 +243,4 @@ class BpyInspector:
             total_bones=len(bones_dict),
             deform_bones_count=sum(1 for b in bones_dict.values() if b.use_deform),
         )
+

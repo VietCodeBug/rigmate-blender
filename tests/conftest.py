@@ -1,10 +1,10 @@
-"""Cấu hình fixtures và mock bpy cho kiểm thử pytest."""
+"""Configuration fixtures and path setup for pytest suite."""
 
 import sys
 import pytest
 from pathlib import Path
 
-# Đảm bảo src/ nằm trong sys.path
+# Ensure src/ is on sys.path
 root_dir = Path(__file__).resolve().parent.parent
 src_dir = root_dir / "src"
 if str(src_dir) not in sys.path:
@@ -13,7 +13,7 @@ if str(src_dir) not in sys.path:
 
 @pytest.fixture
 def temp_storage_dir(tmp_path):
-    """Fixture cung cấp thư mục lưu trữ tạm thời cho từng test case."""
+    """Fixture providing isolated temporary storage directory for tests."""
     storage_dir = tmp_path / "rigmate_test_storage"
     storage_dir.mkdir(parents=True, exist_ok=True)
     return storage_dir

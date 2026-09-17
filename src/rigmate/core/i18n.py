@@ -63,6 +63,16 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "session.bridge_not_found": "RigMate Bridge not found. Run 'python -m rigmate.bridge' first.",
         "session.bridge_connected": "Connected to Bridge ({provider}).",
 
+        # Locale
+        "locale.label": "Language",
+
+        # Error codes
+        "error.bridge.error": "Bridge error encountered.",
+        "error.bridge.connection_failed": "Unable to connect to the RigMate Bridge. Please verify it is running.",
+        "error.bridge.auth_failed": "Authentication with RigMate Bridge failed. Check runtime token.",
+        "error.bridge.timeout": "Request to RigMate Bridge timed out.",
+        "error.bridge.http_error": "Bridge returned an HTTP error.",
+
         # Diagnostics (Core)
         "diag.high_poly_title": "High vertex count ({count:,} vertices)",
         "diag.high_poly_msg": (
@@ -163,6 +173,16 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "session.bridge_cancelled": "Đã hủy tác vụ đang xử lý trên Bridge.",
         "session.bridge_not_found": "Không tìm thấy RigMate Bridge. Hãy chạy 'python -m rigmate.bridge' trước.",
         "session.bridge_connected": "Kết nối thành công tới Bridge ({provider}).",
+
+        # Locale
+        "locale.label": "Ngôn ngữ",
+
+        # Error codes
+        "error.bridge.error": "Gặp lỗi Bridge.",
+        "error.bridge.connection_failed": "Không thể kết nối Bridge RigMate. Vui lòng kiểm tra xem Bridge đã chạy chưa.",
+        "error.bridge.auth_failed": "Xác thực với Bridge thất bại. Hãy kiểm tra token runtime.",
+        "error.bridge.timeout": "Yêu cầu tới Bridge RigMate bị quá thời gian (timeout).",
+        "error.bridge.http_error": "Bridge trả về lỗi HTTP.",
 
         # Diagnostics (Core)
         "diag.high_poly_title": "Số lượng đỉnh cao ({count:,} đỉnh)",

@@ -28,8 +28,11 @@ if HAS_BPY:
                 layout.label(text=t("status.checking"), icon="INFO")
                 return
 
-            # 1. Connection Status
+            # 1. Locale & Connection Status
             box_conn = layout.box()
+            row_lang = box_conn.row(align=True)
+            row_lang.prop(rm_props, "ui_locale", text=t("locale.label"))
+
             row_conn = box_conn.row(align=True)
             if rm_props.is_connected:
                 conn_text = t("status.connected", provider=rm_props.current_provider)

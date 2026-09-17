@@ -10,7 +10,27 @@ from rigmate.storage.runtime_state import RuntimeStateManager
 
 class BridgeClientError(Exception):
     """Base exception for RigMate bridge communication failures."""
-    pass
+    error_code: str = "bridge.error"
+
+    def __init__(self, message: str, error_code: Optional[str] = None):
+        super().__init__(message)
+        if error_code:
+            self.error_code = error_code
+
+
+class BridgeConnectionError(BridgeClientError):
+    """Bridge is offline, unreachable, or refused connection."""
+    error_code: str = "bridge.connection_failed"
+
+
+class BridgeAuthError(BridgeClientError):
+    """Bridge authentication failed or token is missing/invalid."""
+    error_code: str = "bridge.auth_failed"
+
+
+class BridgeTimeoutError(BridgeClientError):
+    """Bridge request timed out."""
+    error_code: str = "bridge.timeout"
 
 
 class RigMateBridgeClient:
@@ -68,7 +88,7 @@ class RigMateBridgeClient:
         session_id: Optional[str],
         context_data: Optional[Dict[str, Any]],
         on_success: Callable[[Dict[str, Any]], None],
-        on_error: Callable[[str], None],
+        on_error: Callable[[str, str], None],
         timeout: float = 40.0,
     ):
         """Send chat request asynchronously in a daemon thread to avoid blocking UI."""
@@ -88,11 +108,16 @@ class RigMateBridgeClient:
                     data = json.loads(response.read().decode("utf-8"))
                     on_success(data)
             except urllib.error.HTTPError as e:
-                on_error(f"HTTP Error {e.code}: {e.reason}")
+                if e.code in (401, 403):
+                    on_error("bridge.auth_failed", f"HTTP {e.code}: Authentication failed")
+                else:
+                    on_error("bridge.http_error", f"HTTP {e.code}: {e.reason}")
             except urllib.error.URLError as e:
-                on_error(f"Cannot connect to Bridge at {self.base_url}: {e.reason}")
+                on_error("bridge.connection_failed", f"Cannot connect to Bridge at {self.base_url}: {e.reason}")
+            except TimeoutError:
+                on_error("bridge.timeout", f"Request to Bridge timed out after {timeout}s")
             except Exception as e:
-                on_error(f"Request error: {e}")
+                on_error("bridge.error", f"Request error: {e}")
 
         self.current_thread = threading.Thread(target=_worker, daemon=True)
         self.current_thread.start()

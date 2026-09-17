@@ -1,4 +1,4 @@
-"""Kiểm thử hợp đồng công cụ MCP (inspect_scene, inspect_mesh, inspect_armature, diagnose_rig)."""
+"""Tests for MCP tools contract (inspect_scene, inspect_mesh, inspect_armature, diagnose_rig)."""
 
 import json
 from rigmate.mcp_server.tools import RigMateMCPTools
@@ -54,7 +54,7 @@ def test_mcp_tools_contract():
 
 
 def test_mcp_fastmcp_json_wrapper():
-    # Kiểm tra các tool function được expose qua JSON string
+    # Verify tool functions exposed via JSON strings
     mesh_json = json.dumps({
         "name": "TestHunyuan",
         "vertex_count": 48000,
@@ -64,7 +64,7 @@ def test_mcp_fastmcp_json_wrapper():
     parsed = json.loads(raw_str)
     assert parsed["name"] == "TestHunyuan"
 
-    # Kiểm tra diagnose_rig qua JSON wrapper
+    # Verify diagnose_rig via JSON wrapper
     diag_str = diagnose_rig(mesh_data_json=mesh_json)
     diag_parsed = json.loads(diag_str)
     assert diag_parsed["mesh_name"] == "TestHunyuan"

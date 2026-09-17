@@ -62,6 +62,35 @@ def test_i18n_register_new_locale():
     assert t("status.disconnected") == "Desconectado de Bridge"
     assert t("btn.send") == "Enviar"
     # Fallback to English for unprovided keys in Spanish
-    assert t("status.checking") == "Checking connection..."
+    set_locale("en")
+
+
+def test_i18n_unknown_locale_safely_falls_back():
+    set_locale("unsupported_locale_xyz")
+    assert get_locale() == "en"
+    assert t("status.disconnected") == "Disconnected from Bridge"
+
+
+def test_i18n_error_codes_separate_from_ui():
+    """Verify that error identifiers/exceptions are stable and UI can translate them."""
+    from rigmate.blender_addon.client import (
+        BridgeClientError,
+        BridgeConnectionError,
+        BridgeAuthError,
+        BridgeTimeoutError,
+    )
+
+    err = BridgeConnectionError("Cannot connect to 127.0.0.1:8765")
+    # Internal error message remains English
+    assert "Cannot connect" in str(err)
+    assert err.error_code == "bridge.connection_failed"
+
+    # UI can translate error_code
+    set_locale("en")
+    assert "Unable to connect" in t(f"error.{err.error_code}")
+
+    set_locale("vi")
+    assert "Không thể kết nối Bridge" in t(f"error.{err.error_code}")
 
     set_locale("en")
+

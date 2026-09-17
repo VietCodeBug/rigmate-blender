@@ -113,9 +113,9 @@ def test_token_usage_separate_from_quota():
     assert token_use.completion_tokens == 350
     assert token_use.total_tokens == 500
 
-    # Đảm bảo trường ngày hết hạn gói (plan_expiration) tách biệt với chu kỳ reset quota
+    # Ensure plan expiration date is separated from periodic reset quota cycle
     snap = QuotaSnapshot(
-        reset_at="2026-09-18T00:00:00Z",          # Reset quota hàng ngày
-        plan_expiration="2027-01-01T00:00:00Z",   # Hết hạn gói Pro năm sau
+        reset_at="2026-09-18T00:00:00Z",          # Daily quota reset
+        plan_expiration="2027-01-01T00:00:00Z",   # Pro subscription expiration next year
     )
     assert snap.reset_at != snap.plan_expiration

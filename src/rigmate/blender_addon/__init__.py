@@ -19,8 +19,8 @@ except ImportError:
     bpy = None  # type: ignore
 
 if HAS_BPY:
-    from rigmate.blender_addon.ui import VIEW3D_PT_rigmate_main
-    from rigmate.blender_addon.operators import (
+    from .ui import VIEW3D_PT_rigmate_main
+    from .operators import (
         RIGMATE_OT_check_connection,
         RIGMATE_OT_send_chat,
         RIGMATE_OT_cancel_chat,
@@ -29,11 +29,26 @@ if HAS_BPY:
         RIGMATE_OT_manual_quota_dialog,
     )
 
+    from rigmate.core.i18n import set_locale, get_locale
+
+    def _on_locale_change(self, context):
+        set_locale(self.ui_locale)
+
     class RigMateChatMessageItem(bpy.types.PropertyGroup):
         sender: bpy.props.StringProperty(name="Sender", default="")  # type: ignore
         text: bpy.props.StringProperty(name="Text", default="")  # type: ignore
 
     class RigMateSceneProperties(bpy.types.PropertyGroup):
+        ui_locale: bpy.props.EnumProperty(
+            name="Language",
+            description="UI display language",
+            items=[
+                ("en", "English", "English (Default)"),
+                ("vi", "Tiếng Việt", "Vietnamese"),
+            ],
+            default="en",
+            update=_on_locale_change,
+        )  # type: ignore
         is_connected: bpy.props.BoolProperty(name="Connected", default=False)  # type: ignore
         current_provider: bpy.props.StringProperty(name="Provider", default="mock")  # type: ignore
         active_model: bpy.props.StringProperty(name="Model", default="mock-hunyuan-assistant")  # type: ignore

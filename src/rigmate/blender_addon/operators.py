@@ -7,8 +7,8 @@ except ImportError:
     HAS_BPY = False
     bpy = None  # type: ignore
 
-from rigmate.blender_addon.bpy_inspectors import BpyInspector
-from rigmate.blender_addon.client import RigMateBridgeClient
+from .bpy_inspectors import BpyInspector
+from .client import RigMateBridgeClient
 from rigmate.core.i18n import t
 
 
@@ -82,12 +82,16 @@ if HAS_BPY:
 
                 bpy.app.timers.register(_update_ui)
 
-            def _on_error(err_msg):
+            def _on_error(err_code: str, err_msg: str):
                 def _update_err():
                     props.is_busy = False
                     err_item = props.chat_messages.add()
                     err_item.sender = "SYSTEM"
-                    err_item.text = t("chat.error_prefix", error=err_msg)
+                    localized_err = t(f"error.{err_code}")
+                    if localized_err == f"error.{err_code}":
+                        # Fallback to internal error message if specific error code key is not translated
+                        localized_err = err_msg
+                    err_item.text = t("chat.error_prefix", error=localized_err)
                     return None
 
                 bpy.app.timers.register(_update_err)

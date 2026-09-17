@@ -54,7 +54,31 @@ This document tracks key architectural decisions, rationale, and technical trade
 ## ADR-05: English-First Canonical Codebase and Localization Layer
 - **Context**: Open-source contributors and automated tools require a standard international technical baseline. Business logic must not hardcode specific regional languages.
 - **Decision**:
-  - Canonical language for source code, comments, docstrings, internal errors, exception classes, logs, and technical documentation is strictly English.
-  - End-user facing UI strings, reports, and dialogs are routed through `rigmate.core.i18n.t(key, locale=...)`.
-  - English (`en`) is the default and fallback locale. Vietnamese (`vi`) is a first-class supported locale.
+  - English is the canonical language for source code, API contracts, developer documentation, logs, comments, docstrings, and internal errors.
+  - User-facing text is localized via `rigmate.core.i18n.t(key, locale=...)`.
+  - English (`en`) is the default and canonical fallback locale. Vietnamese (`vi`) is a first-class supported user-facing locale.
+  - Logs MUST NOT be localized; logs remain English regardless of the UI language.
+  - Error identifiers (`BridgeConnectionError`, `BridgeAuthError`) and error codes are separated from UI translations.
 - **Consequences**: High international maintainability, extensible locale support, and zero hardcoded natural language strings in business logic.
+
+---
+
+## ADR-06: Unified Packaging Layout and Relative Imports in Blender Add-on
+- **Context**: The source tree has add-on files in `src/rigmate/blender_addon/` while the packaged ZIP installs as the root add-on directory `rigmate/` inside Blender (`scripts/addons/rigmate/`). In earlier builds, absolute imports like `from rigmate.blender_addon.ui import ...` failed inside Blender because `rigmate.blender_addon` does not exist inside the packaged hierarchy.
+- **Decision**:
+  - Adopt a unified flattened root package layout in the ZIP:
+    ```text
+    rigmate/
+        __init__.py
+        ui.py
+        operators.py
+        client.py
+        bpy_inspectors.py
+        core/
+        storage/
+    ```
+  - Standardize all internal add-on cross-imports to Python relative imports (e.g. `from .ui import ...`, `from .bpy_inspectors import ...`, `from .client import ...`).
+  - Standardize subpackage imports as root package imports (`from rigmate.core...`, `from rigmate.storage...`).
+  - Automate import validation via `tests/test_package_smoke.py`, which builds the ZIP, unzips to a clean temporary directory, and verifies module resolution outside Blender using a controlled stub `bpy`.
+- **Consequences**: Zero divergence between packaging and source; guaranteed import resolution inside standard Blender installations.
+

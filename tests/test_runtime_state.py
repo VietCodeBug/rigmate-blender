@@ -1,4 +1,4 @@
-"""Kiểm thử RuntimeStateManager: Ghi atomic, đọc token, stale detection, file hỏng."""
+"""Tests for RuntimeStateManager: Atomic write, token discovery, stale detection, corrupted state recovery."""
 
 import json
 from datetime import datetime, timezone, timedelta
@@ -30,7 +30,7 @@ def test_runtime_state_save_and_load(temp_storage_dir):
 def test_runtime_state_stale_detection(temp_storage_dir):
     manager = RuntimeStateManager(base_dir=temp_storage_dir)
 
-    # Tạo state từ 24h trước
+    # Create state from 24h ago
     old_time = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     old_state = BridgeRuntimeState(
         auth_token="stale_token",
@@ -38,20 +38,20 @@ def test_runtime_state_stale_detection(temp_storage_dir):
     )
     manager.save_state(old_state)
 
-    # Đọc với check_stale=True phải trả về None
+    # Reading with check_stale=True must return None
     assert manager.load_state(check_stale=True) is None
-    # Đọc với check_stale=False vẫn trả về state
+    # Reading with check_stale=False still returns state
     assert manager.load_state(check_stale=False) is not None
 
 
 def test_runtime_state_corrupted_file(temp_storage_dir):
     manager = RuntimeStateManager(base_dir=temp_storage_dir)
 
-    # Ghi dữ liệu rác
+    # Write corrupted data
     with open(manager.state_file, "w", encoding="utf-8") as f:
         f.write("{ invalid json corrupted state ")
 
-    # Hệ thống tự động phục hồi an toàn, trả về None, không crash
+    # System safely handles corruption, returning None without crashing
     assert manager.load_state() is None
 
 
