@@ -3,21 +3,29 @@
 import json
 import os
 import tempfile
+from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict, Optional
 from rigmate.storage.paths import get_rigmate_app_dir
 
 
-class BridgeRuntimeState(BaseModel):
+@dataclass
+class BridgeRuntimeState:
     """Runtime state metadata for Bridge Server."""
+    auth_token: str
     host: str = "127.0.0.1"
     port: int = 8765
-    auth_token: str
-    pid: int = Field(default_factory=os.getpid)
-    started_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    pid: int = field(default_factory=os.getpid)
+    started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     version: str = "0.1.0"
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Dictionary representation for serialization compatibility."""
+        return asdict(self)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
     def is_stale(self, max_age_hours: float = 12.0) -> bool:
         """Check if runtime state is older than stale threshold."""

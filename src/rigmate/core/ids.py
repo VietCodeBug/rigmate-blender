@@ -58,3 +58,46 @@ def new_checkpoint_id() -> str:
 def is_valid_id(id_str: str) -> bool:
     """Check if string matches standard prefixed-uuid format."""
     return bool(SAFE_ID_REGEX.match(id_str))
+
+
+SAFE_SLUG_REGEX = re.compile(r"^[a-zA-Z0-9_\-]+$")
+
+
+def validate_safe_id(id_str: str, field_name: str = "id") -> str:
+    """
+    Validate that an identifier is safe for use in filesystem paths.
+    Rejects directory traversal (..), slashes (/ or \\), colons, and special characters.
+    Raises RigMateError(ARTIFACT_PATH_INVALID) if unsafe.
+    """
+    from rigmate.core.errors import RigMateError, RigMateErrorCode
+
+    if not isinstance(id_str, str):
+        raise RigMateError(
+            f"Field '{field_name}' must be a string",
+            code=RigMateErrorCode.ARTIFACT_PATH_INVALID,
+            details={"field": field_name, "value": str(id_str)},
+        )
+
+    clean = id_str.strip()
+    if not clean:
+        raise RigMateError(
+            f"Field '{field_name}' cannot be empty",
+            code=RigMateErrorCode.ARTIFACT_PATH_INVALID,
+            details={"field": field_name},
+        )
+
+    if ".." in clean or "/" in clean or "\\" in clean or "\0" in clean or ":" in clean:
+        raise RigMateError(
+            f"Field '{field_name}' contains illegal path characters: '{id_str}'",
+            code=RigMateErrorCode.ARTIFACT_PATH_INVALID,
+            details={"field": field_name, "value": id_str},
+        )
+
+    if not SAFE_SLUG_REGEX.match(clean):
+        raise RigMateError(
+            f"Field '{field_name}' contains invalid characters (must be alphanumeric, underscore, hyphen): '{id_str}'",
+            code=RigMateErrorCode.ARTIFACT_PATH_INVALID,
+            details={"field": field_name, "value": id_str},
+        )
+
+    return clean
