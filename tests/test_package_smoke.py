@@ -1,10 +1,12 @@
-"""Automated smoke test verifying packaged add-on import resolution.
+"""Automated smoke test verifying packaged Blender add-on dependency boundary.
 
 Verifies:
 1. Building add-on ZIP via packaging script.
 2. Extracting ZIP to an isolated temporary directory.
-3. Importing the packaged 'rigmate' root modules and subpackages with a controlled stub 'bpy'.
-4. Confirming that all relative and absolute internal imports resolve cleanly.
+3. Simulating an environment where Pydantic, FastAPI, and MCP are completely unavailable.
+4. Importing the packaged 'rigmate' root and submodules with a controlled stub 'bpy'.
+5. Confirming that all internal imports resolve cleanly without external packages.
+6. Confirming that backend server/lifecycle modules are excluded from the ZIP.
 """
 
 import sys
@@ -19,15 +21,17 @@ import pytest
 
 
 def test_packaged_addon_import_resolution():
-    """Verify that the packaged ZIP structure imports cleanly without unresolved paths."""
+    """Verify that the packaged ZIP imports cleanly in an environment without Pydantic/FastAPI/MCP."""
     root_dir = Path(__file__).resolve().parent.parent
     dist_dir = root_dir / "dist"
     zip_path = dist_dir / "rigmate_blender_addon_v0.1.0.zip"
 
-    # 1. Build package if not already built
-    if not zip_path.exists():
-        from scripts.package_addon import package_blender_addon
-        package_blender_addon()
+    # 1. Ensure root_dir is in sys.path and build package if needed
+    if str(root_dir) not in sys.path:
+        sys.path.insert(0, str(root_dir))
+
+    from scripts.package_addon import package_blender_addon
+    package_blender_addon()
 
     assert zip_path.exists(), f"Packaged ZIP does not exist at {zip_path}"
 
@@ -40,12 +44,11 @@ def test_packaged_addon_import_resolution():
         pkg_root = Path(temp_dir)
         assert (pkg_root / "rigmate" / "__init__.py").exists()
 
-        # 3. Setup clean import environment with stubbed bpy
-        # Preserve original sys.path and sys.modules
+        # 3. Setup clean import environment simulating vanilla Blender
         orig_sys_path = list(sys.path)
         orig_sys_modules = dict(sys.modules)
 
-        # Ensure stub bpy is injected only if real bpy is absent
+        # Inject stub bpy
         stub_bpy = MagicMock()
         stub_bpy.types.PropertyGroup = object
         stub_bpy.types.Operator = object
@@ -64,12 +67,31 @@ def test_packaged_addon_import_resolution():
         sys.modules["bpy"] = stub_bpy
         sys.modules["mathutils"] = MagicMock()
 
-        # Insert temp_dir at index 0 so 'import rigmate' resolves to packaged directory
-        # Remove existing 'rigmate' modules from sys.modules to force fresh import from temp_dir
+        # STRICT DEPENDENCY BOUNDARY SIMULATION:
+        # Explicitly block external Python packages by mapping them to None in sys.modules
+        blocked_dependencies = [
+            "pydantic",
+            "pydantic_core",
+            "fastapi",
+            "uvicorn",
+            "mcp",
+            "starlette",
+            "httpx",
+        ]
+        for dep in blocked_dependencies:
+            sys.modules[dep] = None
+
+        # Verify simulation: importing any blocked package raises ModuleNotFoundError
+        for dep in ["pydantic", "fastapi", "mcp"]:
+            with pytest.raises(ModuleNotFoundError):
+                importlib.import_module(dep)
+
+        # Remove existing 'rigmate' modules from sys.modules
         for mod_name in list(sys.modules.keys()):
             if mod_name == "rigmate" or mod_name.startswith("rigmate."):
                 del sys.modules[mod_name]
 
+        # Insert temp_dir at index 0 so 'import rigmate' resolves strictly to packaged directory
         sys.path.insert(0, temp_dir)
 
         try:
@@ -84,13 +106,14 @@ def test_packaged_addon_import_resolution():
             pkg_rigmate.register()
             pkg_rigmate.unregister()
 
-            # 5. Import all add-on modules directly from packaged tree
+            # 5. Import all packaged add-on modules directly from packaged tree
             mod_ui = importlib.import_module("rigmate.ui")
             assert hasattr(mod_ui, "VIEW3D_PT_rigmate_main")
 
             mod_ops = importlib.import_module("rigmate.operators")
             assert hasattr(mod_ops, "RIGMATE_OT_check_connection")
             assert hasattr(mod_ops, "RIGMATE_OT_send_chat")
+            assert hasattr(mod_ops, "RIGMATE_OT_diagnose_scene")
 
             mod_client = importlib.import_module("rigmate.client")
             assert hasattr(mod_client, "RigMateBridgeClient")
@@ -100,39 +123,39 @@ def test_packaged_addon_import_resolution():
             mod_inspectors = importlib.import_module("rigmate.bpy_inspectors")
             assert hasattr(mod_inspectors, "BpyInspector")
 
-            mod_core = importlib.import_module("rigmate.core")
-            mod_core_i18n = importlib.import_module("rigmate.core.i18n")
-            assert hasattr(mod_core_i18n, "t")
-            assert hasattr(mod_core_i18n, "set_locale")
+            mod_dto = importlib.import_module("rigmate.dto")
+            assert hasattr(mod_dto, "MeshInfo")
+            assert hasattr(mod_dto, "ArmatureInfo")
+            assert hasattr(mod_dto, "TransformData")
 
-            mod_core_models = importlib.import_module("rigmate.core.models")
-            assert hasattr(mod_core_models, "SceneInfo")
+            mod_i18n = importlib.import_module("rigmate.i18n")
+            assert hasattr(mod_i18n, "t")
+            assert hasattr(mod_i18n, "set_locale")
 
-            mod_core_analyzer = importlib.import_module("rigmate.core.analyzer")
-            assert hasattr(mod_core_analyzer, "RigAnalyzer")
+            mod_analyzer = importlib.import_module("rigmate.analyzer")
+            assert hasattr(mod_analyzer, "RigAnalyzer")
 
-            mod_core_quota = importlib.import_module("rigmate.core.quota")
-            assert hasattr(mod_core_quota, "QuotaSnapshot")
-            assert hasattr(mod_core_quota, "TokenUsage")
+            # 6. Verify that heavy server and core lifecycle modules are NOT in packaged ZIP
+            for excluded in [
+                "rigmate.core.jobs",
+                "rigmate.core.job_service",
+                "rigmate.core.checkpoints",
+                "rigmate.core.plans",
+                "rigmate.storage.job_store",
+            ]:
+                with pytest.raises(ModuleNotFoundError):
+                    importlib.import_module(excluded)
 
-            mod_storage = importlib.import_module("rigmate.storage")
-            mod_storage_mgr = importlib.import_module("rigmate.storage.manager")
-            assert hasattr(mod_storage_mgr, "StorageManager")
-
-            mod_storage_state = importlib.import_module("rigmate.storage.runtime_state")
-            assert hasattr(mod_storage_state, "RuntimeStateManager")
-
-            print("\nPACKAGED PYTHON IMPORT TEST: PASSED")
-            print("REAL BLENDER TEST: NOT PERFORMED")
+            print("\nBLENDER PACKAGE IMPORT: PASS without Pydantic, FastAPI, or MCP")
 
         finally:
             # Restore environment
             sys.path = orig_sys_path
-            # Purge temp rigmate modules
             for mod_name in list(sys.modules.keys()):
                 if mod_name == "rigmate" or mod_name.startswith("rigmate."):
                     del sys.modules[mod_name]
-            # Restore original modules
+            for dep in blocked_dependencies:
+                sys.modules.pop(dep, None)
             sys.modules.update(orig_sys_modules)
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)

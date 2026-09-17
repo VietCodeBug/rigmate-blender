@@ -2,7 +2,10 @@
 
 import json
 from typing import Any, Dict, Optional
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.fastmcp import FastMCP
+except (ImportError, ModuleNotFoundError):
+    from mcp.server.mcpserver import MCPServer as FastMCP
 from rigmate.mcp_server.tools import RigMateMCPTools
 
 mcp_app = FastMCP("rigmate-tools")

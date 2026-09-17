@@ -1,6 +1,7 @@
 """Extract data safely from bpy to Core Models (supports stub mode when Blender is absent)."""
 
-from rigmate.core.dto import (
+from typing import Any, Dict, List, Optional
+from .dto import (
     SceneInfo,
     MeshInfo,
     ArmatureInfo,

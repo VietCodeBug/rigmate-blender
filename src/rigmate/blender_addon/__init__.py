@@ -29,7 +29,7 @@ if HAS_BPY:
         RIGMATE_OT_manual_quota_dialog,
     )
 
-    from rigmate.core.i18n import set_locale, get_locale
+    from .i18n import set_locale, get_locale
 
     def _on_locale_change(self, context):
         set_locale(self.ui_locale)

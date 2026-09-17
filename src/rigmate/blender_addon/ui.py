@@ -7,7 +7,7 @@ except ImportError:
     HAS_BPY = False
     bpy = None  # type: ignore
 
-from rigmate.core.i18n import t
+from .i18n import t
 
 
 if HAS_BPY:

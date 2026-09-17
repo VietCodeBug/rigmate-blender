@@ -5,7 +5,7 @@ This document enables any developer, contributor, or AI agent to understand and 
 ---
 
 ## 1. Workspace & Repository Metadata
-- **Workspace Path**: `D:\Ark_3\RigMate`
+- **Workspace Path**: `D:\MCP_Blender\rigmate-blender`
 - **Git Remote**: `https://github.com/VietCodeBug/rigmate-blender.git`
 - **Primary Branch**: `main`
 - **License**: `LICENSE` (GPL-3.0-or-later)
@@ -17,7 +17,7 @@ This document enables any developer, contributor, or AI agent to understand and 
 ## 2. Module Map
 
 ```text
-D:\Ark_3\RigMate\
+D:\MCP_Blender\rigmate-blender\
 ├── pyproject.toml              # Project dependencies (fastapi, uvicorn, pydantic, mcp, pytest...)
 ├── .gitignore                  # Excludes local storage, runtime tokens, cache, dist
 ├── dist/                       # Output directory for packaged add-on ZIP
@@ -66,13 +66,16 @@ D:\Ark_3\RigMate\
 │       ├── mcp_server/         # Model Context Protocol server (FastMCP)
 │       │   ├── server.py       # Stdio MCP Server exposing tools
 │       │   └── tools.py        # inspect_scene, inspect_mesh, inspect_armature, diagnose_rig
-│       └── blender_addon/      # Blender Add-on UI & Operators
+│       └── blender_addon/      # Blender Add-on UI & Operators (Zero External Dependencies)
 │           ├── __init__.py     # bl_info, property definitions, registration
 │           ├── ui.py           # 3D Viewport sidebar panel (N-Panel), energy bar, chat
 │           ├── operators.py    # Operators for connection, chat, cancellation, quota dialog
-│           ├── client.py       # Asynchronous HTTP background client with token discovery
-│           └── bpy_inspectors.py # Context inspection converting bpy data to core schemas
-├── tests/                      # 98 pytest automated unit & integration tests
+│           ├── client.py       # Asynchronous HTTP background client with zero-dep token discovery
+│           ├── bpy_inspectors.py # Context inspection converting bpy data to DTOs
+│           ├── dto.py          # Pure Python standard-library dataclass DTOs (zero Pydantic)
+│           ├── i18n.py         # Self-contained add-on localization layer
+│           └── analyzer.py     # Self-contained add-on diagnostic analyzer
+├── tests/                      # 134 pytest automated unit & integration tests
 └── docs/                       # Architectural records, technical guides, checklists
 ```
 
@@ -110,14 +113,15 @@ python scripts/run_demo.py
 ---
 
 ## 4. Current Environment State
-- **Blender on Test Machine**: `REAL BLENDER TEST: NOT PERFORMED`.
-- **Antigravity CLI on Test Machine**: `REAL ANTIGRAVITY CLI: UNVERIFIED` (neither `agy` CLI nor SDK detected).
+- **Real Blender Integration**: `REAL BLENDER ADDON LOAD: VERIFIED` (Blender 5.2.1 LTS on Windows 11).
+- **Blender Add-on Dependency Boundary**: Pure standard library only (no Pydantic / external wheels inside Blender).
+- **Bridge & MCP Server**: Python 3.13 venv with `mcp 2.2.0` fallback compatibility (`FastMCP` / `MCPServer`).
 - **Pure Python Tests**: 134/134 tests PASSED.
 
 ---
 
-## 5. Next Steps for Real Blender Verification
-1. Install `dist/rigmate_blender_addon_v0.1.0.zip` via Blender `Edit > Preferences > Add-ons > Install...`.
-2. Start the bridge: `python -m rigmate.bridge`.
-3. Open the **RigMate** tab in the 3D View Sidebar (`N` key).
-4. Follow the testing steps in [docs/BLENDER_TESTING_CHECKLIST.md](BLENDER_TESTING_CHECKLIST.md).
+## 5. Next Development Steps
+1. Real Blender integration smoke test and hardening pass are complete and verified.
+2. Proceed to next roadmap phase according to [docs/ROADMAP.md](ROADMAP.md) (e.g., finger rigging heuristics refinement, weight inspection, or engine export preparations).
+3. Ensure any new Blender add-on code strictly adheres to the standard-library boundary (no external imports inside `blender_addon/`).
+

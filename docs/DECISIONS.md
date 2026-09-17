@@ -144,5 +144,32 @@ This document tracks key architectural decisions, rationale, and technical trade
   - Recovery restores preserved files to verified non-destructive copies (`<name>.recovered.<timestamp>.<ext>`) without destructive live overwriting.
 - **Consequences**: Deterministic, inspectable, and crash-recoverable execution without invisible state.
 
+---
+
+## ADR-13: Standard-Library Dependency Boundary for Blender Add-on
+- **Context**: Blender uses an embedded, isolated Python distribution without pip-installed wheels by default. In earlier iterations, bundling `rigmate.core` into the add-on ZIP dragged in Pydantic, FastAPI, and other external dependencies, leading to registration errors (`ModuleNotFoundError: No module named 'pydantic'`) unless users polluted their Blender environment with external wheels.
+- **Decision**:
+  - The Blender add-on (`src/rigmate/blender_addon/`) must strictly depend ONLY on Python standard libraries (`dataclasses`, `pathlib`, `json`, `urllib`, `threading`, `typing`) and Blender APIs (`bpy`, `mathutils`).
+  - Add-on DTOs (`src/rigmate/blender_addon/dto.py`) are implemented as pure stdlib dataclasses with `.to_dict()` and `.model_dump()` serialization helpers.
+  - Localization (`i18n.py`), scene diagnostics (`analyzer.py`), and runtime state discovery (`client.py`) are implemented self-contained within the add-on module.
+  - `rigmate.core` re-exports canonical classes from `blender_addon.dto` to guarantee 100% schema alignment across Bridge, CLI, and add-on.
+  - Packaging (`scripts/package_addon.py`) enforces an explicit allowlist, packaging only the 8 required add-on files into the ZIP without external dependencies.
+- **Consequences**: Guaranteed out-of-the-box installation on any vanilla Blender 4.x/5.x distribution without any external pip requirements.
+
+---
+
+## ADR-14: Dual-Import Fallback for Model Context Protocol (MCP) SDK 2.x
+- **Context**: Upgrading dependencies brought in `mcp 2.2.0`, which refactored its server module and renamed `FastMCP` to `MCPServer`, breaking imports in `src/rigmate/mcp_server/server.py`.
+- **Decision**:
+  - Implement a dual-import fallback in `src/rigmate/mcp_server/server.py`:
+    ```python
+    try:
+        from mcp.server.fastmcp import FastMCP
+    except (ImportError, ModuleNotFoundError):
+        from mcp.server.mcpserver import MCPServer as FastMCP
+    ```
+- **Consequences**: Backward and forward compatibility across `mcp 1.x` and `mcp 2.x` environments without breaking server initialization.
+
+
 
 

@@ -9,7 +9,7 @@ except ImportError:
 
 from .bpy_inspectors import BpyInspector
 from .client import RigMateBridgeClient
-from rigmate.core.i18n import t
+from .i18n import t
 
 
 if HAS_BPY:
@@ -148,7 +148,7 @@ if HAS_BPY:
                 self.report({'WARNING'}, t("context.no_active_object"))
                 return {'CANCELLED'}
 
-            from rigmate.core.analyzer import RigAnalyzer
+            from .analyzer import RigAnalyzer
             mesh_info = None
             armature_info = None
 

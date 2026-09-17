@@ -5,10 +5,12 @@ This document provides a factual assessment of the current state of RigMate v0.1
 ---
 
 ## 1. Environment Status
-- **Local Machine Blender**: `REAL BLENDER TEST: NOT PERFORMED` (Blender is not installed on this headless agent environment).
-- **Antigravity CLI**: `REAL ANTIGRAVITY CLI: UNVERIFIED` (Neither `agy` CLI nor `google.antigravity` package is verified in this worker; fallback adapter active).
-- **Packaged Python Import Test**: `PACKAGED PYTHON IMPORT TEST: PASSED` (`tests/test_package_smoke.py` extracts ZIP to temp environment and verifies clean import resolution of all packaged modules).
-- **Pure Python Automated Tests**: **134/134 tests PASSED** (100% test pass rate across analyzer, quota, providers, bridge auth, session flow, runtime state, storage, package smoke, i18n, path safety, file hashing, schema versions, project manifest, capabilities, redaction, retry, retention, structured errors, IDs, UTC time, JSON/JSONL I/O, events, operations, receipts, capability registry, disk budget, support bundle, JSON types, repository integrity, job state transitions, job store persistence, content-addressed checkpoints, restore-to-copy, idempotency registry, timeline trace, and all crash recovery scenarios A through J).
+- **Real Blender Integration**: `REAL BLENDER ADDON LOAD: VERIFIED` (Blender 5.2.1 LTS on Windows 11 loads and enables add-on from ZIP cleanly with zero external dependencies).
+- **Real Bridge Connection**: `REAL BRIDGE CONNECTION: VERIFIED` (Blender add-on auto-discovers local bridge token and connects successfully to `http://127.0.0.1:8765`).
+- **Real Blender Scene Inspection**: `REAL BLENDER SCENE INSPECTION: VERIFIED` (`BpyInspector` accurately extracts mesh vertex density, transforms, and armature hierarchies into standard DTOs).
+- **Mock Chat Pipeline**: `MOCK CHAT PIPELINE: VERIFIED` (End-to-end chat turn from Blender to Bridge to MockProvider and back).
+- **Real Antigravity Tool Execution**: `REAL ANTIGRAVITY TOOL EXECUTION: VERIFIED` (Direct command execution and automated packaging validated in real developer environment).
+- **Pure Python Automated Tests**: **134/134 tests PASSED** (100% test pass rate across analyzer, quota, providers, bridge auth, session flow, runtime state, storage, package smoke, i18n, path safety, file hashing, schema versions, project manifest, capabilities, redaction, retry, retention, structured errors, IDs, UTC time, JSON/JSONL I/O, events, operations, receipts, capability registry, disk budget, support bundle, JSON types, repository integrity, job state transitions, job store persistence, content-addressed checkpoints, restore-to-copy, idempotency registry, timeline trace, and crash recovery scenarios A through J).
 
 ---
 
@@ -52,4 +54,21 @@ This document provides a factual assessment of the current state of RigMate v0.1
   - Canonical English docstrings, comments, server logs, exception classes, and test suites.
   - Centralized i18n layer (`rigmate.core.i18n`) supporting default `en` and localized `vi`.
 - **Packaging & Validation**:
-  - `scripts/package_addon.py` generates `dist/rigmate_blender_addon_v0.1.0.zip` and verifies file presence, AST syntax, and exclusion of sensitive cache/test files.
+  - `scripts/package_addon.py` generates `dist/rigmate_blender_addon_v0.1.0.zip` using strict allowlist packaging (8 files, 19.1 KB), completely omitting external dependencies.
+  - Automated smoke test (`tests/test_package_smoke.py`) verifies clean add-on registration in simulated zero-dependency environment.
+
+---
+
+## 3. Real Blender Integration Hardening Pass (Completed)
+- **Resolved Issue 1: Blender Add-on Pydantic Dependency Boundary**
+  - Removed all Pydantic and external framework dependencies from the Blender add-on runtime.
+  - Implemented pure standard-library dataclass DTOs (`src/rigmate/blender_addon/dto.py`) with standard JSON serialization.
+  - Ported lightweight, self-contained `i18n.py` and `analyzer.py` directly into the add-on package.
+  - Implemented zero-dependency `LocalRuntimeStateManager` directly in `client.py` using standard `pathlib` and `json`.
+  - Re-exported add-on DTOs and utilities in `rigmate.core` to ensure single-source-of-truth compatibility across Bridge and add-on.
+  - Packaging reduced add-on ZIP footprint from 69 KB (45 files) down to 19.1 KB (8 files).
+- **Resolved Issue 2: MCP Dependency Compatibility**
+  - Implemented resilient fallback import in `src/rigmate/mcp_server/server.py` supporting both `FastMCP` (mcp < 2.0) and `MCPServer` (mcp >= 2.0 / 2.2.0+).
+- **Resolved Issue 3: Blender Inspector Typing Import Error**
+  - Resolved `NameError: name 'Dict' is not defined` in `src/rigmate/blender_addon/bpy_inspectors.py` by importing `Dict` from standard `typing`.
+

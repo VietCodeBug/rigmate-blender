@@ -4,8 +4,57 @@ import json
 import threading
 import urllib.request
 import urllib.error
+import os
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
-from rigmate.storage.runtime_state import RuntimeStateManager
+
+
+@dataclass
+class BridgeState:
+    auth_token: str
+    host: str = "127.0.0.1"
+    port: int = 8765
+
+
+class LocalRuntimeStateManager:
+    """Blender-safe bridge state loader using standard library only."""
+
+    @staticmethod
+    def _get_app_dir() -> Path:
+        if sys.platform.startswith("win"):
+            base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+            if base:
+                return Path(base) / "RigMate"
+            return Path.home() / ".rigmate"
+        elif sys.platform == "darwin":
+            return Path.home() / "Library" / "Application Support" / "RigMate"
+        else:
+            xdg = os.environ.get("XDG_DATA_HOME")
+            if xdg:
+                return Path(xdg) / "rigmate"
+            return Path.home() / ".local" / "share" / "rigmate"
+
+    def load_state(self, check_stale: bool = True) -> Optional[BridgeState]:
+        try:
+            state_file = self._get_app_dir() / "bridge_state.json"
+            if not state_file.is_file():
+                return None
+            with open(state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if check_stale and "started_at" in data:
+                dt = datetime.fromisoformat(data["started_at"].replace("Z", "+00:00"))
+                if (datetime.now(timezone.utc) - dt) > timedelta(hours=12.0):
+                    return None
+            return BridgeState(
+                auth_token=data.get("auth_token", ""),
+                host=data.get("host", "127.0.0.1"),
+                port=int(data.get("port", 8765)),
+            )
+        except Exception:
+            return None
 
 
 class BridgeClientError(Exception):
@@ -42,7 +91,7 @@ class RigMateBridgeClient:
         self.auth_token = auth_token
         self.base_url = f"http://{host}:{port}"
         self.current_thread: Optional[threading.Thread] = None
-        self.state_manager = RuntimeStateManager()
+        self.state_manager = LocalRuntimeStateManager()
 
         if not self.auth_token:
             self.discover_token()
