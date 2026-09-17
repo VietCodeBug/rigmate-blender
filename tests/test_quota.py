@@ -119,3 +119,35 @@ def test_token_usage_separate_from_quota():
         plan_expiration="2027-01-01T00:00:00Z",   # Pro subscription expiration next year
     )
     assert snap.reset_at != snap.plan_expiration
+
+
+def test_quota_pure_helpers():
+    from rigmate.core.quota import (
+        is_quota_exhausted,
+        is_quota_available,
+        is_quota_stale,
+        calculate_valid_percentage,
+    )
+
+    # 1. 20/100 -> 20.0%
+    assert calculate_valid_percentage(20.0, 100.0) == 20.0
+
+    # 2. remaining=0 -> exhausted
+    snap_zero = QuotaSnapshot(quota_remaining=0.0, quota_total=100.0)
+    assert is_quota_exhausted(snap_zero) is True
+    assert is_quota_available(snap_zero) is False
+
+    # 3. unknown / no limit -> no fabricated percentage
+    assert calculate_valid_percentage(None, 100.0) is None
+    assert calculate_valid_percentage(50.0, None) is None
+    assert calculate_valid_percentage(50.0, 0.0) is None
+
+    # 4. Positive quota -> available
+    snap_pos = QuotaSnapshot(quota_remaining=15.0, quota_total=100.0)
+    assert is_quota_available(snap_pos) is True
+    assert is_quota_exhausted(snap_pos) is False
+
+    # 5. Unsupported label
+    snap_unsup = QuotaSnapshot(source="UNSUPPORTED")
+    assert snap_unsup.format_energy_label() == "Quota checking unsupported by provider"
+

@@ -87,6 +87,8 @@ class QuotaSnapshot(BaseModel):
             source_tag = f" {t('quota.tag_manual', locale=locale)}"
         elif self.source == "UNKNOWN":
             return t("quota.auto_unavailable", locale=locale)
+        elif self.source == "UNSUPPORTED":
+            return t("quota.unsupported", locale=locale)
 
         pct = self.percentage
         stale_tag = f" {t('quota.tag_stale', locale=locale)}" if self.is_stale else ""
@@ -100,3 +102,30 @@ class QuotaSnapshot(BaseModel):
             return f"{self.quota_remaining:g} {self.quota_unit}{source_tag}{stale_tag}"
         else:
             return f"{t('quota.unknown', locale=locale)}{source_tag}"
+
+
+def is_quota_exhausted(snapshot: QuotaSnapshot) -> bool:
+    """Return True if quota is definitively known and remaining balance is <= 0."""
+    return snapshot.quota_remaining is not None and snapshot.quota_remaining <= 0.0
+
+
+def is_quota_available(snapshot: QuotaSnapshot) -> bool:
+    """Return True if quota has a valid positive balance."""
+    return snapshot.quota_remaining is not None and snapshot.quota_remaining > 0.0
+
+
+def is_quota_stale(snapshot: QuotaSnapshot) -> bool:
+    """Return True if quota snapshot is stale according to threshold."""
+    return snapshot.is_stale
+
+
+def calculate_valid_percentage(remaining: Optional[float], total: Optional[float]) -> Optional[float]:
+    """
+    Pure calculation helper: compute percentage only when mathematically sound.
+    Never fabricates a percentage without both remaining and total (>0).
+    """
+    if remaining is None or total is None or total <= 0:
+        return None
+    pct = (float(remaining) / float(total)) * 100.0
+    return max(0.0, min(100.0, pct))
+

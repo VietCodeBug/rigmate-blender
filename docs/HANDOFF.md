@@ -30,14 +30,22 @@ D:\Ark_3\RigMate\
 │       ├── core/               # Core domain models, analyzers, quota, and i18n (bpy-independent)
 │       │   ├── models.py       # Pydantic schemas: SceneInfo, MeshInfo, ArmatureInfo, BoneInfo
 │       │   ├── analyzer.py     # Rig diagnosis (Hunyuan 3D + Meshy + Godot readiness)
-│       │   ├── quota.py        # QuotaSnapshot, TokenUsage, energy formatting
-│       │   └── i18n.py         # Localization layer: t(), set_locale(), register_locale()
+│       │   ├── quota.py        # QuotaSnapshot, TokenUsage, pure helpers, energy formatting
+│       │   ├── i18n.py         # Localization layer: t(), set_locale(), register_locale()
+│       │   ├── path_safety.py  # Path containment and traversal protection
+│       │   ├── file_hash.py    # Streaming SHA-256 and metadata verification
+│       │   ├── schema_version.py # Lightweight semantic schema compatibility parser
+│       │   ├── project.py      # ProjectManifest core model (local-only, no cloud account)
+│       │   ├── redaction.py    # Recursive data redaction for support bundles
+│       │   └── retry.py        # Bounded exponential backoff policy for idempotent reads
 │       ├── storage/            # Local data persistence
 │       │   ├── paths.py        # %LOCALAPPDATA%/RigMate
 │       │   ├── manager.py      # Atomic writes, corrupt file backup, UTF-8 JSON
-│       │   └── runtime_state.py# bridge_state.json discovery token manager
+│       │   ├── runtime_state.py# bridge_state.json discovery token manager
+│       │   └── retention.py    # Pure checkpoint retention calculator (budget & count bounds)
 │       ├── providers/          # AI Provider adapters
 │       │   ├── base.py         # Abstract interfaces BaseAIProvider, BaseQuotaProvider
+│       │   ├── capabilities.py # Provider capability matrix & evidence audit trail
 │       │   ├── mock_provider.py# MockProvider tailored for Hunyuan/Meshy scenarios
 │       │   └── antigravity_provider.py # Antigravity CLI/SDK adapter with UNVERIFIED_ENV fallback
 │       ├── bridge/             # Localhost Bridge Server (FastAPI)
@@ -53,7 +61,7 @@ D:\Ark_3\RigMate\
 │           ├── operators.py    # Operators for connection, chat, cancellation, quota dialog
 │           ├── client.py       # Asynchronous HTTP background client with token discovery
 │           └── bpy_inspectors.py # Context inspection converting bpy data to core schemas
-├── tests/                      # 32 pytest automated tests
+├── tests/                      # 63 pytest automated unit & integration tests
 └── docs/                       # Architectural records, technical guides, checklists
 ```
 
@@ -92,8 +100,8 @@ python scripts/run_demo.py
 
 ## 4. Current Environment State
 - **Blender on Test Machine**: `REAL BLENDER TEST: NOT PERFORMED`.
-- **Antigravity CLI on Test Machine**: `UNVERIFIED_ENV` (neither `agy` CLI nor SDK detected).
-- **Pure Python Tests**: 32/32 tests PASSED.
+- **Antigravity CLI on Test Machine**: `REAL ANTIGRAVITY CLI: UNVERIFIED` (neither `agy` CLI nor SDK detected).
+- **Pure Python Tests**: 63/63 tests PASSED.
 
 ---
 
