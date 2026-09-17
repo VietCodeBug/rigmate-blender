@@ -121,4 +121,15 @@ This document tracks key architectural decisions, rationale, and technical trade
   - Unknown capabilities default to unavailable/false.
 - **Consequences**: Trustworthy execution boundaries and clean preflight capability checks.
 
+---
+
+## ADR-11: Repository Ignore Pattern Safety & Root-Scoping
+- **Context**: In an earlier build, a broad `.gitignore` pattern `storage/` inadvertently matched the application source directory `src/rigmate/storage/`, preventing core storage source files (`manager.py`, `paths.py`, `retention.py`, `json_io.py`, `disk_budget.py`) from being tracked in Git while local tests continued to pass from untracked working-tree files.
+- **Decision**:
+  - All repository ignore patterns targeting runtime data directories must be root-scoped (e.g. `/storage/`) or scoped explicitly to runtime data paths (`/local_data/`, `%LOCALAPPDATA%/RigMate/`).
+  - Never use unanchored generic directory names in `.gitignore` that could collide with package module subdirectories.
+  - Implement automated repository integrity checks (`tests/test_repository_integrity.py` and `scripts/check_repo_integrity.py`) to verify that all architectural source modules are present and tracked by Git.
+- **Consequences**: Eliminates silent omissions of source code in fresh repository checkouts.
+
+
 

@@ -112,7 +112,7 @@ python scripts/run_demo.py
 ## 4. Current Environment State
 - **Blender on Test Machine**: `REAL BLENDER TEST: NOT PERFORMED`.
 - **Antigravity CLI on Test Machine**: `REAL ANTIGRAVITY CLI: UNVERIFIED` (neither `agy` CLI nor SDK detected).
-- **Pure Python Tests**: 98/98 tests PASSED.
+- **Pure Python Tests**: 110/110 tests PASSED.
 
 ---
 

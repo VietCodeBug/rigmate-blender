@@ -8,7 +8,7 @@ This document provides a factual assessment of the current state of RigMate v0.1
 - **Local Machine Blender**: `REAL BLENDER TEST: NOT PERFORMED` (Blender is not installed on this headless agent environment).
 - **Antigravity CLI**: `REAL ANTIGRAVITY CLI: UNVERIFIED` (Neither `agy` CLI nor `google.antigravity` package is verified in this worker; fallback adapter active).
 - **Packaged Python Import Test**: `PACKAGED PYTHON IMPORT TEST: PASSED` (`tests/test_package_smoke.py` extracts ZIP to temp environment and verifies clean import resolution of all packaged modules).
-- **Pure Python Automated Tests**: **98/98 tests PASSED** (100% test pass rate across analyzer, quota, providers, bridge auth, session flow, runtime state, storage, package smoke, i18n, path safety, file hashing, schema versions, project manifest, capabilities, redaction, retry, retention, structured errors, IDs, UTC time, JSON/JSONL I/O, events, operations, receipts, capability registry, disk budget, support bundle, and JSON types).
+- **Pure Python Automated Tests**: **110/110 tests PASSED** (100% test pass rate across analyzer, quota, providers, bridge auth, session flow, runtime state, storage, package smoke, i18n, path safety, file hashing, schema versions, project manifest, capabilities, redaction, retry, retention, structured errors, IDs, UTC time, JSON/JSONL I/O, events, operations, receipts, capability registry, disk budget, support bundle, JSON types, and repository integrity).
 
 ---
 

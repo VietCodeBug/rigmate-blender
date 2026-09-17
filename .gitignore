@@ -54,7 +54,7 @@ htmlcov/
 .mypy_cache/
 
 # RigMate local user storage & sensitive configs (Never commit local history/credentials)
-storage/
+/storage/
 local_data/
 *.token
 *.key
