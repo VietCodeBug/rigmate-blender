@@ -52,15 +52,20 @@ if HAS_BPY:
             props.is_busy = True
             props.user_input_text = ""
 
-            # Thu thập ngữ cảnh nếu được bật
+            # Thu thập ngữ cảnh nếu được bật (ngữ cảnh gọn, không gửi 50k vertex)
             context_data = None
             if props.send_selected_only:
-                scene_info = BpyInspector.get_scene_info()
-                context_data = {"scene_info": scene_info.model_dump()}
+                context_data = BpyInspector.get_selected_context()
 
             def _on_success(response_data):
                 def _update_ui():
                     props.is_busy = False
+                    
+                    # BLOCKER B FIX: Cập nhật active_session_id từ phản hồi của Bridge
+                    new_session_id = response_data.get("session_id")
+                    if new_session_id:
+                        props.active_session_id = new_session_id
+
                     resp = response_data.get("response", {})
                     resp_text = resp.get("text", "Không nhận được phản hồi.")
 
@@ -103,10 +108,15 @@ if HAS_BPY:
 
         def execute(self, context):
             props = context.scene.rigmate_props
+            # BLOCKER B FIX: Thực sự gửi lệnh cancel lên server nếu có session active
+            cancelled = False
             if props.active_session_id:
-                bridge_client.cancel_request(props.active_session_id)
+                cancelled = bridge_client.cancel_request(props.active_session_id)
             props.is_busy = False
-            self.report({'INFO'}, "Đã gửi lệnh dừng yêu cầu.")
+            if cancelled:
+                self.report({'INFO'}, "Đã hủy tác vụ đang xử lý trên Bridge.")
+            else:
+                self.report({'INFO'}, "Đã gửi tín hiệu dừng tới giao diện.")
             return {'FINISHED'}
 
     class RIGMATE_OT_new_session(bpy.types.Operator):
@@ -117,6 +127,7 @@ if HAS_BPY:
         def execute(self, context):
             props = context.scene.rigmate_props
             props.chat_messages.clear()
+            # Reset active_session_id để lượt chat tiếp theo tạo phiên mới
             props.active_session_id = ""
             props.last_tokens_used = 0
             self.report({'INFO'}, "Đã tạo phiên hội thoại mới.")
@@ -172,13 +183,33 @@ if HAS_BPY:
 
         def execute(self, context):
             props = context.scene.rigmate_props
-            props.is_manual_quota = True
-            props.has_quota_percentage = (self.total > 0)
-            if self.total > 0:
-                props.energy_percentage = (self.remaining / self.total) * 100.0
-            props.quota_display_label = f"{self.remaining:g}/{self.total:g} {self.unit} [Nhập thủ công]"
-            self.report({'INFO'}, "Đã lưu snapshot hạn mức thủ công.")
-            return {'FINISHED'}
+            
+            # BLOCKER D FIX: Gửi persist snapshot qua Bridge client lên StorageManager
+            provider_name = props.current_provider or "Unknown"
+            model_name = props.active_model or "Unknown"
+            quota_tot = self.total if self.total > 0 else None
+
+            res = bridge_client.update_manual_quota(
+                provider_name=provider_name,
+                model_name=model_name,
+                quota_remaining=self.remaining,
+                quota_total=quota_tot,
+                quota_unit=self.unit,
+            )
+
+            if res.get("status") == "saved":
+                props.is_manual_quota = True
+                props.has_quota_percentage = (quota_tot is not None and quota_tot > 0)
+                if props.has_quota_percentage:
+                    props.energy_percentage = (self.remaining / self.total) * 100.0
+                    props.quota_display_label = f"{(self.remaining / self.total) * 100.0:.1f}% ({self.remaining:g}/{self.total:g} {self.unit}) [Nhập thủ công]"
+                else:
+                    props.energy_percentage = 0.0
+                    props.quota_display_label = f"{self.remaining:g} {self.unit} [Nhập thủ công]"
+                self.report({'INFO'}, "Đã lưu snapshot hạn mức thủ công vào Storage.")
+            else:
+                err = res.get("message", "Không thể kết nối Bridge.")
+                self.report({'ERROR'}, f"Lỗi lưu hạn mức: {err}")
 else:
     RIGMATE_OT_check_connection = None  # type: ignore
     RIGMATE_OT_send_chat = None  # type: ignore

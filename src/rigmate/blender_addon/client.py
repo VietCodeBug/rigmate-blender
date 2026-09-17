@@ -7,6 +7,9 @@ import urllib.error
 from typing import Any, Callable, Dict, Optional
 
 
+from rigmate.storage.runtime_state import RuntimeStateManager
+
+
 class RigMateBridgeClient:
     """Client giao tiếp qua HTTP với Bridge Localhost (không làm đứng UI Blender)."""
 
@@ -16,15 +19,44 @@ class RigMateBridgeClient:
         self.auth_token = auth_token
         self.base_url = f"http://{host}:{port}"
         self.current_thread: Optional[threading.Thread] = None
+        self.state_manager = RuntimeStateManager()
+
+        # Tự động phát hiện token nếu chưa được cung cấp
+        if not self.auth_token:
+            self.discover_token()
+
+    def discover_token(self) -> bool:
+        """Tự động tìm kiếm runtime token từ AppData do Bridge ghi ra."""
+        state = self.state_manager.load_state(check_stale=True)
+        if state and state.auth_token:
+            self.auth_token = state.auth_token
+            self.host = state.host
+            self.port = state.port
+            self.base_url = f"http://{self.host}:{self.port}"
+            return True
+        return False
+
+    def get_auth_headers(self) -> Dict[str, str]:
+        """Tạo headers kèm token. Nếu chưa có token, thử discover lại một lần."""
+        if not self.auth_token:
+            self.discover_token()
+        return {
+            "Content-Type": "application/json",
+            "x-rigmate-token": self.auth_token,
+        }
 
     def check_health(self, timeout: float = 2.0) -> Dict[str, Any]:
         """Kiểm tra bridge có đang chạy không (đồng bộ nhanh)."""
+        # Thử refresh token khi kiểm tra kết nối
+        self.discover_token()
         url = f"{self.base_url}/health"
         try:
             req = urllib.request.Request(url)
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 if response.status == 200:
-                    return json.loads(response.read().decode("utf-8"))
+                    data = json.loads(response.read().decode("utf-8"))
+                    data["token_discovered"] = bool(self.auth_token)
+                    return data
         except Exception:
             pass
         return {"status": "offline"}
@@ -47,10 +79,7 @@ class RigMateBridgeClient:
                 "context_data": context_data,
             }).encode("utf-8")
 
-            headers = {
-                "Content-Type": "application/json",
-                "x-rigmate-token": self.auth_token,
-            }
+            headers = self.get_auth_headers()
 
             try:
                 req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
@@ -67,28 +96,55 @@ class RigMateBridgeClient:
         self.current_thread = threading.Thread(target=_worker, daemon=True)
         self.current_thread.start()
 
-    def cancel_request(self, session_id: str):
+    def cancel_request(self, session_id: str) -> bool:
         """Gửi lệnh hủy yêu cầu đang chạy."""
         url = f"{self.base_url}/cancel"
         payload = json.dumps({"session_id": session_id}).encode("utf-8")
-        headers = {
-            "Content-Type": "application/json",
-            "x-rigmate-token": self.auth_token,
-        }
+        headers = self.get_auth_headers()
         try:
             req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=3.0):
-                pass
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return bool(data.get("cancelled", False))
         except Exception:
-            pass
+            return False
 
     def get_quota(self, profile: str = "default") -> Dict[str, Any]:
         """Lấy snapshot quota hiện tại."""
         url = f"{self.base_url}/quota?profile={profile}"
-        headers = {"x-rigmate-token": self.auth_token}
+        headers = self.get_auth_headers()
         try:
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=3.0) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except Exception:
             return {"source": "UNKNOWN", "quota_remaining": None}
+
+    def update_manual_quota(
+        self,
+        provider_name: str,
+        model_name: str,
+        quota_remaining: float,
+        quota_total: Optional[float] = None,
+        quota_unit: str = "requests",
+        account_profile: str = "default",
+        plan_expiration: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Gửi snapshot hạn mức thủ công lên Bridge và persist vào storage."""
+        url = f"{self.base_url}/quota/manual"
+        payload = json.dumps({
+            "provider_name": provider_name,
+            "model_name": model_name,
+            "account_profile": account_profile,
+            "quota_remaining": quota_remaining,
+            "quota_total": quota_total,
+            "quota_unit": quota_unit,
+            "plan_expiration": plan_expiration,
+        }).encode("utf-8")
+        headers = self.get_auth_headers()
+        try:
+            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            return {"status": "error", "message": str(e)}

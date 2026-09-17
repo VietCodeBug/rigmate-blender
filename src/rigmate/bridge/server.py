@@ -10,6 +10,7 @@ from rigmate.providers.mock_provider import MockAIProvider
 from rigmate.providers.antigravity_provider import AntigravityProvider
 from rigmate.bridge.session import SessionManager
 from rigmate.storage.manager import StorageManager
+from rigmate.storage.runtime_state import RuntimeStateManager, BridgeRuntimeState
 
 
 class ChatRequestPayload(BaseModel):
@@ -36,18 +37,37 @@ class BridgeServer:
     """
     HTTP/REST Bridge server chỉ lắng nghe localhost (127.0.0.1)
     Bảo vệ bằng token xác thực ngẫu nhiên sinh khi khởi động.
+    Ghi runtime state vào AppData để Blender Add-on phát hiện tự động an toàn.
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8765):
+    def __init__(self, host: str = "127.0.0.1", port: int = 8765, save_state: bool = True):
         self.host = host
         self.port = port
         self.auth_token = secrets.token_hex(16)
         self.storage = StorageManager()
         self.session_manager = SessionManager(self.storage)
+        self.state_manager = RuntimeStateManager(self.storage.base_dir)
 
         # Mặc định khởi động với MockProvider an toàn
         self.current_provider: BaseAIProvider = MockAIProvider()
+
+        if save_state:
+            self._publish_runtime_state()
+
         self.app = self._create_app()
+
+    def _publish_runtime_state(self):
+        """Xuất thông tin runtime state cho các process cục bộ khác (Blender)."""
+        state = BridgeRuntimeState(
+            host=self.host,
+            port=self.port,
+            auth_token=self.auth_token,
+        )
+        self.state_manager.save_state(state)
+
+    def cleanup_state(self):
+        """Dọn dẹp state khi tắt server."""
+        self.state_manager.clear_state()
 
     def set_provider(self, provider: BaseAIProvider):
         self.current_provider = provider

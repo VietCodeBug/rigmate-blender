@@ -1,48 +1,64 @@
 # Kiến Trúc Hệ Thống RigMate (Architecture Design)
 
-## 1. Nguyên Tắc Thiết Kế Cốt Lõi
-
-1. **Tách Biệt Độc Lập Khỏi Blender (`bpy`)**:
-   - Mọi cấu trúc dữ liệu (`core/models.py`), thuật toán chẩn đoán (`core/analyzer.py`), bộ nhớ lưu trữ (`storage/manager.py`) và nhà cung cấp AI (`providers/`) phải chạy được trên Python thuần túy mà không cần `bpy`.
-   - Điều này cho phép CI/CD, unit test và mô phỏng chạy tức thì trên bất kỳ máy chủ nào mà không đòi hỏi cài đặt Blender.
-
-2. **Bất Đồng Bộ & An Toàn Luồng (Thread Safety)**:
-   - **Main Thread của Blender**: Chỉ thực thi các thao tác can thiệp trực tiếp vào scene (`bpy.context`, `bpy.data`, `bpy.ops`).
-   - **Background Worker**: Client mạng (`RigMateBridgeClient`) chạy trên daemon thread riêng biệt để gửi nhận HTTP/JSON, đảm bảo giao diện 3D View của Blender không bao giờ bị đơ (freeze).
-   - Khi có dữ liệu trả về từ AI Bridge, kết quả được đẩy ngược vào Main Thread an toàn thông qua `bpy.app.timers.register`.
-
-3. **Bảo Mật Cục Bộ (Localhost Security)**:
-   - Bridge Server chỉ `bind` vào địa chỉ `127.0.0.1`.
-   - Mỗi lần khởi động, Bridge sinh một `auth_token` ngẫu nhiên 32 ký tự hex và yêu cầu Header `x-rigmate-token` trên mọi request nhạy cảm (tránh tấn công CSRF từ trình duyệt hoặc truy cập từ mạng LAN nội bộ).
+Tài liệu này mô tả kiến trúc **thực tế hiện tại** của RigMate v0.1 sau khi đã khắc phục các blocker tích hợp.
 
 ---
 
-## 2. Sơ Đồ Khối Tương Tác
+## 1. Các Nguyên Tắc Thiết Kế
+
+1. **Ranh Giới Rõ Ràng Giữa Blender Python và External Python**:
+   - Blender Python: Chạy Add-on UI, Operators, Background Client, và hai package nhẹ được đóng gói trực tiếp vào file ZIP: `rigmate.core` và `rigmate.storage`.
+   - External Python: Chạy Bridge Server (FastAPI/Uvicorn), MCP Server (FastMCP), và các AI Provider adapters (Mock, Antigravity).
+
+2. **Xác Thực Cục Bộ Bằng Discovery Token (Zero-Config Security)**:
+   - Bridge chỉ bind vào `127.0.0.1`.
+   - Token xác thực được sinh ngẫu nhiên và ghi ra runtime state file an toàn trong Local AppData (`%LOCALAPPDATA%\RigMate\bridge_state.json`).
+   - Blender Client tự động đọc file này để lấy token thực hiện handshake và ký header `x-rigmate-token` trên các request `/chat`, `/cancel`, `/quota`, `/quota/manual`. Không yêu cầu người dùng copy-paste token thủ công.
+
+3. **An Toàn Luồng (Thread Safety)**:
+   - Toàn bộ giao tiếp mạng của Add-on chạy trên daemon background thread của `RigMateBridgeClient`.
+   - Kết quả phản hồi được đồng bộ ngược về Main Thread của Blender thông qua `bpy.app.timers.register`.
+
+4. **Dữ Liệu Ngữ Cảnh Gọn Gàng**:
+   - Tùy chọn `send_selected_only` sử dụng `BpyInspector.get_selected_context()` chỉ thu thập Active Object và danh sách Selected Objects cùng thông tin tổng quát (vertex count, modifiers, transform status). Tuyệt đối không gửi tọa độ của 50.000 đỉnh lên AI.
+
+---
+
+## 2. Sơ Đồ Khối Thực Tế
 
 ```text
 +-------------------------------------------------------------------------+
 |                              BLENDER PROCESS                            |
 |                                                                         |
-|  [3D Viewport] <---> [RigMate Sidebar UI (N-Panel)]                    |
+|  [3D Viewport] <---> [RigMate Sidebar UI (Tab N)]                       |
 |                              |                                          |
-|                 [Operators & Timers (Main Thread)]                      |
+|                 [Operators (Main Thread)]                               |
 |                              |                                          |
-|               [BpyInspector (Trích xuất Metadata)]                      |
+|               [BpyInspector.get_selected_context()]                     |
 |                              |                                          |
-|             [RigMateBridgeClient (Background Worker Thread)]            |
+|         [RigMateBridgeClient (Background Daemon Thread)]                |
+|               ^                                                         |
+|               | (Tự động đọc runtime auth_token)                        |
+|               |                                                         |
+|         [%LOCALAPPDATA%/RigMate/bridge_state.json]                      |
 +------------------------------|------------------------------------------+
                                | (HTTP / JSON localhost:8765)
+                               | [Headers: x-rigmate-token]
                                v
 +-------------------------------------------------------------------------+
 |                         RIGMATE BRIDGE PROCESS                          |
 |                                                                         |
 |  [FastAPI Bridge Server (127.0.0.1)]                                    |
 |         |                                                               |
-|         +---> [SessionManager] <---> [StorageManager (Atomic JSON)]     |
+|         +---> [RuntimeStateManager] -> ghi bridge_state.json            |
+|         |                                                               |
+|         +---> [SessionManager] (Giữ session_id & hủy task thật)         |
+|         |                                                               |
+|         +---> [StorageManager] (Atomic write, corrupt backup, Quota)    |
 |         |                                                               |
 |         +---> [AI Provider Dispatcher]                                  |
 |                     |                                                   |
-|                     +---> [MockAIProvider] (Sẵn sàng khi dev/test)      |
+|                     +---> [MockAIProvider] (Hunyuan+Meshy scenarios)    |
 |                     |                                                   |
 |                     +---> [AntigravityProvider] (Adapter agy / SDK)     |
 |                                                                         |
@@ -53,15 +69,3 @@
 |         +--- diagnose_rig                                               |
 +-------------------------------------------------------------------------+
 ```
-
----
-
-## 3. Quản Lý Hạn Mức & Thanh Năng Lượng (Energy Bar)
-
-Để đảm bảo tính trung thực và minh bạch theo mục 5 của đặc tả sản phẩm:
-- `QuotaSnapshot` lưu giữ:
-  - `quota_remaining` và `quota_total`: Chỉ tính phần trăm khi cả hai trường đều có giá trị hợp lệ.
-  - `source`: Ghi nhãn tường minh `AUTOMATIC`, `MANUAL`, `DEMO` hoặc `UNKNOWN`.
-  - `is_stale`: Tự động cảnh báo nếu snapshot cũ hơn 24 giờ.
-  - `plan_expiration`: Thời hạn thuê bao tách biệt hoàn toàn với chu kỳ reset hạn mức ngày/tháng (`reset_at`).
-  - `last_tokens_used`: Token tiêu thụ của lượt chat đơn lẻ được hiển thị riêng, không tự tiện cấn trừ suy đoán vào quota tổng.

@@ -69,6 +69,59 @@ class BpyInspector:
         )
 
     @classmethod
+    def get_selected_context(cls) -> Dict[str, Any]:
+        """
+        Thu thập ngữ cảnh GỌN cho vùng chọn (không gửi toàn bộ 50k vertex coordinates).
+        Chỉ thu thập active object và các object đang được chọn.
+        """
+        if not HAS_BPY or bpy is None:
+            return {
+                "active_object": {
+                    "name": "Mock_Hunyuan_Character",
+                    "type": "MESH",
+                    "vertex_count": 52400,
+                    "modifiers": ["ARMATURE"],
+                    "transform_applied": True,
+                },
+                "selected_objects": [
+                    {"name": "Mock_Hunyuan_Character", "type": "MESH"},
+                    {"name": "Mock_Meshy_Armature", "type": "ARMATURE"},
+                ],
+                "selection_count": 2,
+            }
+
+        context = bpy.context
+        active_obj = context.active_object
+        selected_objs = context.selected_objects
+
+        active_summary = None
+        if active_obj:
+            mod_names = [m.type for m in getattr(active_obj, "modifiers", [])]
+            v_count = len(active_obj.data.vertices) if active_obj.type == "MESH" and hasattr(active_obj, "data") else 0
+            is_applied = (
+                all(abs(s - 1.0) < 1e-4 for s in active_obj.scale)
+                and all(abs(r) < 1e-4 for r in active_obj.rotation_euler)
+            )
+            active_summary = {
+                "name": active_obj.name,
+                "type": active_obj.type,
+                "vertex_count": v_count,
+                "modifiers": mod_names,
+                "transform_applied": is_applied,
+            }
+
+        selected_summaries = [
+            {"name": o.name, "type": o.type}
+            for o in selected_objs
+        ]
+
+        return {
+            "active_object": active_summary,
+            "selected_objects": selected_summaries,
+            "selection_count": len(selected_objs),
+        }
+
+    @classmethod
     def get_mesh_info(cls, obj_name: str) -> Optional[MeshInfo]:
         """Đọc thông tin mesh của object cụ thể."""
         if not HAS_BPY or bpy is None:
