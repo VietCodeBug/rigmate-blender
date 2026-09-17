@@ -1,6 +1,6 @@
 # RigMate 🦴🤖
 
-**Trợ lý trong Blender dành cho người dùng ít kiến thức 3D, hỗ trợ kiểm tra và tinh chỉnh rig nhân vật (Hunyuan 3D + Meshy) hướng tới xuất sang Godot Engine.**
+**An AI assistant in Blender for users with limited 3D rigging expertise, streamlining the inspection and refinement of generative 3D characters (Hunyuan 3D + Meshy) targeting Godot Engine.**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -9,43 +9,51 @@
 
 ---
 
-## 1. Mục tiêu & Luồng công việc thực tế
-
-Người dùng thông thường thường tạo nhân vật 3D qua quy trình tự động:
-1. Tạo mô hình bằng **Tencent Hunyuan 3D** (mật độ lưới thường dày, khoảng ~50.000 đỉnh).
-2. Đưa mô hình sang **Meshy** để tự động gắn khung xương (Auto-rig cơ bản).
-3. Nhập nhân vật vào **Blender**.
-4. **RigMate** đồng hành trợ lý: chẩn đoán các lỗi unapplied transforms, cảnh báo số đỉnh quá dày cho Game Engine, nhận diện cấu trúc xương ngón tay (heuristic), và chuẩn bị sẵn sàng để xuất sang **Godot**.
-
-> **Triết lý sản phẩm:**
-> - Không giả định mọi mô hình đều có 5 ngón tay tách rời hoặc topology hoàn hảo.
-> - Tên xương chỉ là gợi ý, không áp đặt kết luận sai lệch.
-> - Bản v0.1 tập trung vào **quan sát, chẩn đoán và hội thoại trợ lý**.
+> [!NOTE]
+> **Language & Localization**: English is the canonical language for RigMate source code, developer documentation, logs, and error handling. Vietnamese is supported as an end-user UI locale via our i18n system. (Xem tài liệu tiếng Việt tại [Tài liệu hướng dẫn tại nhà](docs/HOME_SETUP_GUIDE.md)).
 
 ---
 
-## 2. Điểm nổi bật ở phiên bản v0.1
+## 1. Pipeline & Workflow
 
-- 🔋 **Thanh năng lượng & Hạn mức AI minh bạch**:
-  - Tách bạch 3 khái niệm: Token tiêu thụ theo lượt/phiên, Hạn mức Quota còn lại, và Thời hạn gói thuê bao.
-  - Phân biệt rõ nguồn dữ liệu: `[Tự động]`, `[Nhập thủ công]` hoặc `[DEMO]`.
-  - Không tự đoán mò hạn mức nếu nhà cung cấp chưa có API máy đọc.
-- 💬 **Hội thoại ngay trong Blender**:
-  - Giao diện tab RigMate trong Sidebar (phím `N` trong 3D View).
-  - Quản lý phiên hội thoại, lưu trữ cục bộ, nút gửi, nút dừng tác vụ đang chạy.
-  - Tùy chọn chỉ gửi thông tin object/vùng chọn, không tự tiện tải toàn bộ mesh dung lượng lớn.
-- 🛠️ **Bộ công cụ MCP (Model Context Protocol)**:
-  - `inspect_scene`: Đọc tổng quan Scene Blender.
-  - `inspect_mesh`: Đọc thông tin chi tiết Mesh (số đỉnh, modifiers, vertex groups).
-  - `inspect_armature`: Đọc hệ thống xương, phân cấp cha-con.
-  - `diagnose_rig`: Chẩn đoán tự động tương thích Godot.
-- 🔒 **Bảo mật & Dữ liệu Cục bộ**:
-  - Giao tiếp Localhost an toàn với Token xác thực ngẫu nhiên theo phiên.
-  - Lưu trữ JSON nguyên tử (Atomic write), tự phục hồi khi gặp file hỏng, hỗ trợ tiếng Việt có dấu 100%.
+Typical generative 3D workflows:
+1. Generate a character model using **Tencent Hunyuan 3D** (dense mesh topology, ~50,000 vertices).
+2. Auto-rig with **Meshy** (basic biped skeleton).
+3. Import into **Blender**.
+4. **RigMate Assistant**: Inspect unapplied transforms, assess real-time vertex density for game engines, apply heuristic finger bone detection, and prepare clean assets for **Godot Engine**.
+
+> **Design Philosophy:**
+> - Non-dogmatic bone structure heuristics: Unmatched bone names do not automatically imply missing fingers.
+> - High vertex counts (~50k) are flagged as Godot real-time performance considerations, not topological mesh errors.
+> - v0.1 focuses on **safe observation, diagnosis, and conversational guidance**.
 
 ---
 
-## 3. Cấu trúc Dự án
+## 2. Key Highlights in v0.1
+
+- 🔋 **Truthful AI Energy Bar & Quota Tracking**:
+  - Differentiates turn token usage, account quota, and plan expiration.
+  - Transparent data source tagging: `[Automatic]`, `[Manual Entry]`, or `[DEMO]`.
+  - Displays `Automatic quota data is unavailable` when machine-readable endpoints do not exist.
+- 💬 **Blender Sidebar Chat Interface**:
+  - Located in the 3D Viewport Sidebar (`N` key, RigMate tab).
+  - Multi-turn session continuity, local chat persistence, and actual task cancellation.
+  - Compact context inspector (`send_selected_only`) without sending massive vertex dumps.
+- 🛠️ **FastMCP Server (Model Context Protocol)**:
+  - `inspect_scene`: Inspect overall Blender scene state.
+  - `inspect_mesh`: Inspect vertex count, modifiers, and vertex groups.
+  - `inspect_armature`: Inspect bone hierarchy and transform status.
+  - `diagnose_rig`: Automated Godot export readiness analysis.
+- 🔒 **Zero-Config Local Security**:
+  - Localhost-only binding (`127.0.0.1`) secured by runtime discovery tokens.
+  - Atomic JSON writes with automatic recovery from corrupted files and full UTF-8 Unicode support.
+- 🌐 **English-First Architecture with i18n Localization**:
+  - Canonical English code, comments, docstrings, logs, and internal errors.
+  - User-facing UI strings routed through `rigmate.core.i18n.t(key, locale=...)`.
+
+---
+
+## 3. Repository Structure
 
 ```text
 RigMate/
@@ -55,71 +63,73 @@ RigMate/
 ├── README.md
 ├── CONTRIBUTING.md
 ├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── ROADMAP.md
-│   ├── HOME_SETUP_GUIDE.md
+│   ├── ARCHITECTURE.md           # System design & component diagrams
+│   ├── DECISIONS.md              # Architectural Decision Records (ADRs)
+│   ├── STATUS.md                 # Current environment & verification status
+│   ├── HANDOFF.md                # Contributor handoff guide
+│   ├── HOME_SETUP_GUIDE.md       # Step-by-step home installation guide
 │   └── BLENDER_TESTING_CHECKLIST.md
 ├── scripts/
-│   ├── run_demo.py               # Chạy demo tương tác không cần cài Blender
-│   └── package_addon.py          # Đóng gói add-on thành file zip
+│   ├── run_demo.py               # Standalone interactive demo (no Blender needed)
+│   └── package_addon.py          # Packages add-on ZIP with automated validation
 ├── src/
 │   └── rigmate/
-│       ├── core/                 # Cấu trúc dữ liệu & phân tích rig độc lập bpy
-│       ├── storage/              # Lưu trữ cục bộ an toàn, atomic write
+│       ├── core/                 # Models, analyzers, quota, and i18n
+│       ├── storage/              # Atomic local storage & runtime state discovery
 │       ├── providers/            # AI Providers (Mock + Antigravity CLI/SDK)
-│       ├── bridge/               # Bridge server localhost quản lý session
-│       ├── mcp_server/           # Máy chủ công cụ MCP FastMCP
-│       └── blender_addon/        # Add-on tích hợp trong Blender
-└── tests/                        # Toàn bộ unit tests tự động (pytest)
+│       ├── bridge/               # FastAPI Bridge server managing sessions & cancellation
+│       ├── mcp_server/           # FastMCP Server exposing inspection tools
+│       └── blender_addon/        # Blender UI, operators, background client
+└── tests/                        # Automated test suite (pytest)
 ```
 
 ---
 
-## 4. Hướng dẫn chạy thử nghiệm nhanh (Không cần Blender)
+## 4. Quick Standalone Verification (No Blender Needed)
 
-Trên máy chưa cài đặt Blender, bạn hoàn toàn có thể kiểm thử toàn bộ logic chẩn đoán, phiên chat và lưu trữ:
+You can verify all core diagnostic algorithms, session managers, and local storage on any machine without Blender:
 
-### Bước 1: Chạy kiểm thử tự động
+### Step 1: Run Automated Tests
 ```powershell
 python -m pytest tests -v
 ```
 
-### Bước 2: Chạy demo tương tác Console
+### Step 2: Run Standalone Demo
 ```powershell
 python scripts/run_demo.py
 ```
 
-### Bước 3: Đóng gói Add-on
+### Step 3: Package Blender Add-on
 ```powershell
 python scripts/package_addon.py
 ```
-Tệp `.zip` cài đặt sẽ được tạo tại: `dist/rigmate_blender_addon_v0.1.0.zip`.
+The packaged add-on is generated at: `dist/rigmate_blender_addon_v0.1.0.zip`.
 
 ---
 
-## 5. Hướng dẫn cài đặt và kết nối tại nhà (Có Blender)
+## 5. Blender Installation & Setup
 
-Xem chi tiết tại [Tài liệu hướng dẫn tại nhà](docs/HOME_SETUP_GUIDE.md) và [Checklist kiểm thử Blender](docs/BLENDER_TESTING_CHECKLIST.md).
+For full setup instructions, see [Home Setup Guide](docs/HOME_SETUP_GUIDE.md) and [Blender Testing Checklist](docs/BLENDER_TESTING_CHECKLIST.md).
 
-Tóm tắt các bước:
-1. Mở Blender > `Edit` > `Preferences` > `Add-ons` > `Install...` > Chọn `dist/rigmate_blender_addon_v0.1.0.zip`.
-2. Kích hoạt add-on **RigMate - AI Rig Assistant**.
-3. Khởi chạy Bridge Server trên terminal:
+Summary:
+1. Open Blender > `Edit > Preferences > Add-ons > Install...` > Select `dist/rigmate_blender_addon_v0.1.0.zip`.
+2. Enable **RigMate - AI Rig Assistant**.
+3. Start the Bridge Server in your terminal:
    ```powershell
-   python -m uvicorn rigmate.bridge.server:BridgeServer().app --host 127.0.0.1 --port 8765
+   python -m rigmate.bridge --host 127.0.0.1 --port 8765
    ```
-4. Trong Blender 3D View, bấm phím `N` để mở Sidebar, chọn tab **RigMate** và nhấn **Kiểm tra kết nối**.
+4. In Blender 3D Viewport, press `N` to open the Sidebar, navigate to the **RigMate** tab, and click **Check Connection**.
 
 ---
 
-## 6. Lưu ý về Quyền riêng tư & AI
+## 6. Privacy & Data Safety
 
-- Dữ liệu lịch sử trò chuyện và cấu hình được lưu hoàn toàn trên máy tính cá nhân trong thư mục AppData/Local của người dùng.
-- **Lưu cục bộ không có nghĩa là AI chạy offline**: Khi bạn bấm "Gửi", câu hỏi và dữ liệu phân tích ngữ cảnh của đối tượng mà bạn đồng ý gửi sẽ được chuyển tới Provider AI (Antigravity/Gemini) để xử lý.
-- RigMate tuyệt đối không thu thập mật khẩu, cookie hay tự động bật các gói tính phí ngoài ý muốn của người dùng.
+- Chat history and configuration are stored locally under `%LOCALAPPDATA%\RigMate`.
+- **Local storage does not mean offline AI inference**: When you click "Send", the selected context summary and query are transmitted to the configured AI provider.
+- Sensitive credentials, auth tokens, and full mesh geometry arrays are never logged or exported.
 
 ---
 
-## 7. Giấy phép
+## 7. License
 
-Dự án được phát hành theo giấy phép **GNU General Public License v3.0 or later (GPL-3.0-or-later)** để tương thích hoàn toàn với hệ sinh thái Blender.
+Released under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)** for full compatibility with the Blender ecosystem.

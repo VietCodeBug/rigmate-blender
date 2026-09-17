@@ -1,4 +1,4 @@
-"""RigMate Blender Add-on: Đăng ký properties, operators và UI panels."""
+"""RigMate Blender Add-on: Register properties, operators, and UI panels."""
 
 bl_info = {
     "name": "RigMate - AI Rig Assistant",
@@ -6,7 +6,7 @@ bl_info = {
     "version": (0, 1, 0),
     "blender": (4, 0, 0),
     "location": "View3D > Sidebar > RigMate Tab",
-    "description": "Trợ lý AI hỗ trợ kiểm tra và tinh chỉnh rig (Hunyuan 3D, Meshy) hướng tới xuất Godot.",
+    "description": "AI-powered rig inspection and refinement assistant (Hunyuan 3D, Meshy) targeting Godot export.",
     "category": "Rigging",
     "license": "GPL-3.0-or-later",
 }
@@ -42,7 +42,7 @@ if HAS_BPY:
         # Quota & Energy Level
         has_quota_percentage: bpy.props.BoolProperty(name="Has Percentage", default=False)  # type: ignore
         energy_percentage: bpy.props.FloatProperty(name="Energy %", default=0.0, min=0.0, max=100.0)  # type: ignore
-        quota_display_label: bpy.props.StringProperty(name="Quota Label", default="Chưa đọc được hạn mức tự động")  # type: ignore
+        quota_display_label: bpy.props.StringProperty(name="Quota Label", default="Automatic quota data is unavailable")  # type: ignore
         is_manual_quota: bpy.props.BoolProperty(name="Manual Quota", default=False)  # type: ignore
         last_tokens_used: bpy.props.IntProperty(name="Last Tokens", default=0)  # type: ignore
         plan_expiration_text: bpy.props.StringProperty(name="Plan Expiration", default="")  # type: ignore

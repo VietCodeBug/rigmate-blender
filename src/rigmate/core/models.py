@@ -1,24 +1,24 @@
-"""Cấu trúc dữ liệu độc lập hoàn toàn với Blender (bpy)."""
+"""Data models and schemas decoupled completely from Blender (bpy)."""
 
 from typing import List, Dict, Optional, Any
 from pydantic import BaseModel, Field
 
 
 class TransformData(BaseModel):
-    """Lưu trữ transform (vị trí, xoay, tỷ lệ) để kiểm tra unapplied transform."""
+    """Object transform (location, rotation, scale) to verify unapplied transforms."""
     location: List[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     rotation_euler: List[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     scale: List[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0])
 
     def is_applied(self, tolerance: float = 1e-4) -> bool:
-        """Kiểm tra scale có bằng 1.0 và rotation có bằng 0.0 không."""
+        """Check whether scale equals 1.0 and rotation equals 0.0 within tolerance."""
         scale_ok = all(abs(s - 1.0) < tolerance for s in self.scale)
         rot_ok = all(abs(r) < tolerance for r in self.rotation_euler)
         return scale_ok and rot_ok
 
 
 class BoneInfo(BaseModel):
-    """Thông tin về một bone trong armature."""
+    """Information for a single armature bone."""
     name: str
     parent_name: Optional[str] = None
     children_names: List[str] = Field(default_factory=list)
@@ -30,7 +30,7 @@ class BoneInfo(BaseModel):
 
 
 class ArmatureInfo(BaseModel):
-    """Thông tin armature và phân cấp xương."""
+    """Armature hierarchy and bone metadata."""
     name: str
     bones: Dict[str, BoneInfo] = Field(default_factory=dict)
     root_bone_names: List[str] = Field(default_factory=list)
@@ -40,14 +40,14 @@ class ArmatureInfo(BaseModel):
 
 
 class VertexWeightSummary(BaseModel):
-    """Tóm tắt phân bổ trọng số vertex."""
+    """Summary of vertex skinning influence weights."""
     unweighted_vertex_count: int = 0
     max_weights_per_vertex: int = 0
-    exceeds_godot_max_weights: bool = False  # Godot mặc định tối đa 4 (hoặc 8 nếu bật 8-weights)
+    exceeds_godot_max_weights: bool = False  # Godot supports 4 weights/vertex (or 8 with 8-weights enabled)
 
 
 class MeshInfo(BaseModel):
-    """Thông tin chi tiết về mesh (đặc thù Hunyuan 3D khoảng ~50k đỉnh)."""
+    """Detailed mesh metrics (e.g. Hunyuan 3D ~50k vertices)."""
     name: str
     vertex_count: int = 0
     edge_count: int = 0
@@ -61,7 +61,7 @@ class MeshInfo(BaseModel):
 
 
 class SceneObjectSummary(BaseModel):
-    """Tóm tắt nhanh một object trong scene Blender."""
+    """High-level summary of an object in Blender scene."""
     name: str
     type: str  # MESH, ARMATURE, CAMERA, LIGHT, EMPTY,...
     is_selected: bool = False
@@ -70,7 +70,7 @@ class SceneObjectSummary(BaseModel):
 
 
 class SceneInfo(BaseModel):
-    """Toàn cảnh scene hiện tại."""
+    """Full scene overview."""
     active_object_name: Optional[str] = None
     selected_object_names: List[str] = Field(default_factory=list)
     objects: List[SceneObjectSummary] = Field(default_factory=list)
@@ -78,7 +78,7 @@ class SceneInfo(BaseModel):
 
 
 class DiagnosticSeverity(BaseModel):
-    """Phân loại mức độ cảnh báo."""
+    """Severity classification constants."""
     INFO: str = "INFO"
     SUGGESTION: str = "SUGGESTION"
     WARNING: str = "WARNING"
@@ -86,7 +86,7 @@ class DiagnosticSeverity(BaseModel):
 
 
 class DiagnosticIssue(BaseModel):
-    """Một mục vấn đề hoặc phát hiện trong quá trình chẩn đoán."""
+    """A single diagnostic issue or observation."""
     code: str
     severity: str  # INFO, SUGGESTION, WARNING, ERROR
     title: str
@@ -97,19 +97,18 @@ class DiagnosticIssue(BaseModel):
 
 
 class FingerHeuristicSummary(BaseModel):
-    """Tóm tắt nhận diện ngón tay heuristic."""
+    """Heuristic detection summary for hand fingers."""
     hand_side: str  # LEFT, RIGHT, UNKNOWN
     detected_fingers: Dict[str, List[str]] = Field(default_factory=dict)
-    # Ví dụ: {"thumb": ["thumb_01", "thumb_02"], "index": [...]}
-    confidence_note: str = "Tên xương chỉ là gợi ý heuristic, không khẳng định thiếu ngón nếu model dùng quy ước khác."
+    confidence_note: str = "Bone names are heuristic suggestions and do not strictly confirm missing fingers."
 
 
 class RigDiagnosticReport(BaseModel):
-    """Báo cáo sơ bộ toàn diện về tình trạng Rig và Mesh."""
+    """Comprehensive diagnostic report on rig and mesh readiness."""
     timestamp: str
     mesh_name: Optional[str] = None
     armature_name: Optional[str] = None
     issues: List[DiagnosticIssue] = Field(default_factory=list)
     finger_heuristics: List[FingerHeuristicSummary] = Field(default_factory=list)
-    godot_compatibility_score: str = "Chưa đánh giá"  # TỐT, CẦN LƯU Ý, CẦN SỬA
+    godot_compatibility_score: str = "UNASSESSED"  # GOOD, NEEDS ATTENTION, NEEDS FIX
     summary_text: str = ""

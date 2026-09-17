@@ -1,4 +1,4 @@
-"""Kiểm thử bộ phân tích chẩn đoán Rig và Mesh (đặc thù Hunyuan 3D + Meshy + Godot)."""
+"""Tests for Rig and Mesh diagnostic analyzer (Hunyuan 3D + Meshy + Godot pipeline)."""
 
 import pytest
 from rigmate.core.analyzer import RigAnalyzer
@@ -8,10 +8,11 @@ from rigmate.core.models import (
     BoneInfo,
     TransformData,
 )
+from rigmate.core.i18n import set_locale
 
 
 def test_analyzer_hunyuan_high_poly_warning():
-    # Mô hình Hunyuan 3D có 55,000 đỉnh
+    # Hunyuan 3D model with 55,000 vertices
     mesh = MeshInfo(
         name="HunyuanCharacter",
         vertex_count=55000,
@@ -21,7 +22,13 @@ def test_analyzer_hunyuan_high_poly_warning():
     report = RigAnalyzer.analyze(mesh=mesh)
 
     assert any(i.code == "MESH_HIGH_POLY" for i in report.issues)
-    assert report.godot_compatibility_score in ["CẦN LƯU Ý", "CẦN SỬA"]
+    assert report.godot_compatibility_score in ["NEEDS ATTENTION", "NEEDS FIX"]
+
+    # Test Vietnamese localized output
+    set_locale("vi")
+    report_vi = RigAnalyzer.analyze(mesh=mesh)
+    assert report_vi.godot_compatibility_score in ["CẦN LƯU Ý", "CẦN SỬA"]
+    set_locale("en")
 
 
 def test_analyzer_unapplied_transforms():
@@ -42,7 +49,7 @@ def test_analyzer_unapplied_transforms():
 
 
 def test_analyzer_finger_heuristics_non_dogmatic():
-    # Trường hợp 1: Rig Meshy dạng bàn tay nắm (chỉ có Hand.L, Hand.R)
+    # Case 1: Meshy mitten hand rig (only Hand.L, Hand.R)
     armature_mitten = ArmatureInfo(
         name="MeshyMittenRig",
         bones={
@@ -54,13 +61,13 @@ def test_analyzer_finger_heuristics_non_dogmatic():
     )
     report_mitten = RigAnalyzer.analyze(armature=armature_mitten)
 
-    # KHÔNG được coi là ERROR mà là SUGGESTION (gợi ý), không khẳng định sai sót
+    # Must NOT be ERROR, must be SUGGESTION, non-dogmatic heuristic
     issue = next((i for i in report_mitten.issues if i.code == "FINGERS_NOT_DETECTED_BY_NAME"), None)
     assert issue is not None
     assert issue.severity == "SUGGESTION"
-    assert "không khẳng định" in issue.message.lower()
+    assert "heuristic suggestions" in issue.message.lower()
 
-    # Trường hợp 2: Rig có đủ 5 ngón tay chuẩn
+    # Case 2: Full 5 fingers detected
     bones_full = {"Hips": BoneInfo(name="Hips")}
     for f in ["thumb", "index", "middle", "ring", "pinky"]:
         bones_full[f"{f}_01.l"] = BoneInfo(name=f"{f}_01.l")
@@ -72,3 +79,4 @@ def test_analyzer_finger_heuristics_non_dogmatic():
     )
     report_full = RigAnalyzer.analyze(armature=armature_full)
     assert any(i.code == "FINGERS_COMPLETE_HEURISTIC" for i in report_full.issues)
+

@@ -1,4 +1,4 @@
-"""Antigravity CLI / Python SDK Adapter với cơ chế phát hiện và xử lý lỗi môi trường."""
+"""Antigravity CLI / Python SDK Adapter with safe environment error detection."""
 
 import asyncio
 import os
@@ -11,10 +11,10 @@ from rigmate.providers.base import BaseAIProvider, BaseQuotaProvider, ChatMessag
 
 class AntigravityProvider(BaseAIProvider, BaseQuotaProvider):
     """
-    Adapter tương tác với Antigravity CLI (`agy`) hoặc Antigravity Python SDK.
-    - Không suy đoán hoặc bịa tham số nếu CLI chưa sẵn sàng.
-    - Đánh dấu rõ trạng thái `UNVERIFIED_ENV` khi chạy trên máy chưa có CLI hoặc chưa đăng nhập.
-    - Tuân thủ nguyên tắc: Không tự trích xuất cookie/token nội bộ, không tự chuyển sang API tính phí.
+    Adapter interfacing with official Antigravity CLI (`agy`) or Python SDK.
+    - Does not speculate flags or APIs if CLI is not present.
+    - Explicitly sets state to UNVERIFIED_ENV when running without live CLI or authentication.
+    - Strictly avoids extracting internal cookies or tokens; does not enable paid APIs.
     """
 
     def __init__(self, model: str = "gemini-3.8-flash"):
@@ -31,15 +31,15 @@ class AntigravityProvider(BaseAIProvider, BaseQuotaProvider):
         return self._model
 
     def is_available(self) -> bool:
-        """Kiểm tra xem môi trường hiện tại có thể gọi được CLI hoặc SDK không."""
+        """Check whether CLI or Python SDK is callable in the current environment."""
         return bool(self.cli_path or self.sdk_available)
 
     def _detect_cli_path(self) -> Optional[str]:
-        """Tìm binary `agy` trong PATH hệ thống."""
+        """Detect binary `agy` in system PATH."""
         return shutil.which("agy")
 
     def _detect_sdk(self) -> bool:
-        """Kiểm tra xem google.antigravity SDK có được cài trong môi trường Python này không."""
+        """Check whether google.antigravity SDK is installed in current Python env."""
         try:
             import google.antigravity  # type: ignore
             return True
@@ -53,29 +53,28 @@ class AntigravityProvider(BaseAIProvider, BaseQuotaProvider):
         timeout_seconds: float = 30.0,
     ) -> ProviderResponse:
         if not self.is_available():
-            # Máy chưa có CLI hoặc SDK
+            # Missing CLI or SDK
             return ProviderResponse(
                 text=(
-                    "[UNVERIFIED_ENV] Chưa phát hiện Antigravity CLI ('agy') hoặc Python SDK ('google.antigravity') "
-                    "trong môi trường hiện tại. Vui lòng kiểm tra hướng dẫn cài đặt tại nhà (HOME_SETUP_GUIDE.md) "
-                    "hoặc chuyển sang chế độ 'Mock Provider' trong cài đặt RigMate."
+                    "[UNVERIFIED_ENV] Antigravity CLI ('agy') or Python SDK ('google.antigravity') "
+                    "was not detected in this environment. Please consult HOME_SETUP_GUIDE.md "
+                    "or switch to 'Mock Provider' mode in RigMate settings."
                 ),
                 token_usage=TokenUsage.create(0, 0),
-                suggested_actions=["Chuyển sang Mock Provider", "Mở Hướng dẫn Cài đặt"],
+                suggested_actions=["Switch to Mock Provider", "Open Setup Guide"],
                 raw_metadata={"status": "UNVERIFIED_ENV", "session_id": session_id},
             )
 
-        # Lấy prompt của user gần nhất
         last_prompt = messages[-1].content if messages else ""
 
-        # Nếu có SDK
+        # SDK execution pathway
         if self.sdk_available:
             try:
                 from google.antigravity import Agent, LocalAgentConfig  # type: ignore
                 config = LocalAgentConfig(
                     system_instructions=(
-                        "Bạn là RigMate, trợ lý hỗ trợ kiểm tra và tinh chỉnh rig 3D nhân vật "
-                        "cho người dùng ít kiến thức 3D trong Blender hướng tới xuất Godot Engine."
+                        "You are RigMate, an AI assistant in Blender assisting non-expert 3D users "
+                        "with character rig validation and adjustments targeting Godot Engine."
                     )
                 )
                 async with Agent(config) as agent:
@@ -95,15 +94,14 @@ class AntigravityProvider(BaseAIProvider, BaseQuotaProvider):
                     )
             except Exception as e:
                 return ProviderResponse(
-                    text=f"[Lỗi kết nối Antigravity SDK]: {e}",
-                    suggested_actions=["Chuyển sang Mock Provider"],
+                    text=f"[Antigravity SDK Error]: {e}",
+                    suggested_actions=["Switch to Mock Provider"],
                     raw_metadata={"error": str(e)},
                 )
 
-        # Nếu có CLI `agy`
+        # CLI pathway
         if self.cli_path:
             try:
-                # Gọi subprocess agy ở chế độ headless prompt
                 process = await asyncio.create_subprocess_exec(
                     self.cli_path,
                     "--prompt",
@@ -125,21 +123,21 @@ class AntigravityProvider(BaseAIProvider, BaseQuotaProvider):
                 else:
                     err_text = stderr.decode("utf-8", errors="replace")
                     return ProviderResponse(
-                        text=f"[Lỗi gọi CLI agy (exit code {process.returncode})]: {err_text}",
-                        suggested_actions=["Xem log CLI"],
+                        text=f"[CLI Execution Error (exit code {process.returncode})]: {err_text}",
+                        suggested_actions=["Check CLI logs"],
                     )
             except asyncio.TimeoutError:
                 return ProviderResponse(
-                    text=f"[Quá thời gian chờ]: Yêu cầu tới Antigravity CLI vượt quá {timeout_seconds}s.",
-                    suggested_actions=["Thử lại", "Hủy"],
+                    text=f"[Timeout]: Request to Antigravity CLI exceeded {timeout_seconds}s.",
+                    suggested_actions=["Retry", "Cancel"],
                 )
             except Exception as e:
                 return ProviderResponse(
-                    text=f"[Lỗi thực thi agy CLI]: {e}",
-                    suggested_actions=["Kiểm tra CLI"],
+                    text=f"[CLI Error]: {e}",
+                    suggested_actions=["Verify CLI configuration"],
                 )
 
-        return ProviderResponse(text="Không thể khởi tạo provider.")
+        return ProviderResponse(text="Unable to initialize AI provider.")
 
     async def stream_response(
         self,
@@ -152,10 +150,9 @@ class AntigravityProvider(BaseAIProvider, BaseQuotaProvider):
 
     async def fetch_quota_snapshot(self, account_profile: str = "default") -> QuotaSnapshot:
         """
-        Đọc hạn mức từ Antigravity:
-        Hiện tại CLI/SDK chưa có API máy đọc công khai cho quota (/usage chỉ có TUI tương tác).
-        Do đó hiển thị 'UNKNOWN' kèm nhãn rõ ràng: 'Chưa đọc được hạn mức tự động'.
-        Tuyệt đối không đoán mò số liệu quota.
+        Fetch quota from Antigravity:
+        Currently CLI/SDK lacks a public machine-readable quota API (/usage is interactive TUI).
+        Reports 'UNKNOWN' source to prompt user for manual snapshot entry.
         """
         return QuotaSnapshot(
             provider_name="Antigravity",

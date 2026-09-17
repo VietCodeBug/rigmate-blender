@@ -1,30 +1,34 @@
-# Kiến Trúc Hệ Thống RigMate (Architecture Design)
+# RigMate System Architecture
 
-Tài liệu này mô tả kiến trúc **thực tế hiện tại** của RigMate v0.1 sau khi đã khắc phục các blocker tích hợp.
-
----
-
-## 1. Các Nguyên Tắc Thiết Kế
-
-1. **Ranh Giới Rõ Ràng Giữa Blender Python và External Python**:
-   - Blender Python: Chạy Add-on UI, Operators, Background Client, và hai package nhẹ được đóng gói trực tiếp vào file ZIP: `rigmate.core` và `rigmate.storage`.
-   - External Python: Chạy Bridge Server (FastAPI/Uvicorn), MCP Server (FastMCP), và các AI Provider adapters (Mock, Antigravity).
-
-2. **Xác Thực Cục Bộ Bằng Discovery Token (Zero-Config Security)**:
-   - Bridge chỉ bind vào `127.0.0.1`.
-   - Token xác thực được sinh ngẫu nhiên và ghi ra runtime state file an toàn trong Local AppData (`%LOCALAPPDATA%\RigMate\bridge_state.json`).
-   - Blender Client tự động đọc file này để lấy token thực hiện handshake và ký header `x-rigmate-token` trên các request `/chat`, `/cancel`, `/quota`, `/quota/manual`. Không yêu cầu người dùng copy-paste token thủ công.
-
-3. **An Toàn Luồng (Thread Safety)**:
-   - Toàn bộ giao tiếp mạng của Add-on chạy trên daemon background thread của `RigMateBridgeClient`.
-   - Kết quả phản hồi được đồng bộ ngược về Main Thread của Blender thông qua `bpy.app.timers.register`.
-
-4. **Dữ Liệu Ngữ Cảnh Gọn Gàng**:
-   - Tùy chọn `send_selected_only` sử dụng `BpyInspector.get_selected_context()` chỉ thu thập Active Object và danh sách Selected Objects cùng thông tin tổng quát (vertex count, modifiers, transform status). Tuyệt đối không gửi tọa độ của 50.000 đỉnh lên AI.
+This document describes the current architecture of RigMate v0.1 following integration and internationalization stabilization.
 
 ---
 
-## 2. Sơ Đồ Khối Thực Tế
+## 1. Architectural Principles
+
+1. **Clear Boundary Between Blender Python and External Python**:
+   - **Blender Python**: Runs the Add-on UI, Operators, Background Client, and two self-contained packages bundled inside the ZIP: `rigmate.core` and `rigmate.storage`.
+   - **External Python**: Runs the Bridge Server (FastAPI/Uvicorn), MCP Server (FastMCP), and AI Provider adapters (MockAIProvider, AntigravityProvider).
+
+2. **Local Authentication via Runtime Discovery Token (Zero-Config Security)**:
+   - The Bridge binds strictly to `127.0.0.1`.
+   - On startup, it generates a cryptographically secure token (`secrets.token_hex(16)`) and atomically writes runtime state to `%LOCALAPPDATA%\RigMate\bridge_state.json`.
+   - The Blender Client automatically reads this file to sign requests with the `x-rigmate-token` header on sensitive endpoints (`/chat`, `/cancel`, `/quota`, `/quota/manual`).
+
+3. **Thread Safety & Non-blocking I/O**:
+   - All network communications within Blender execute on background daemon threads via `RigMateBridgeClient`.
+   - Results are dispatched back to Blender's Main Thread using `bpy.app.timers.register`.
+
+4. **Lean Context Inspection**:
+   - The `send_selected_only` toggle collects high-level summary info via `BpyInspector.get_selected_context()` (active object, modifiers, vertex count, transforms). 50k vertex coordinates are never transmitted over the wire.
+
+5. **Canonical English Technical Core & i18n Localization**:
+   - Source comments, docstrings, error messages, exception types, and server logs are strictly canonical English.
+   - User-facing UI labels, dialogs, and reports query the internationalization layer `rigmate.core.i18n.t(key, locale=...)`. English is the default locale (`en`), with Vietnamese (`vi`) fully supported.
+
+---
+
+## 2. Component Diagram
 
 ```text
 +-------------------------------------------------------------------------+
@@ -38,7 +42,7 @@ Tài liệu này mô tả kiến trúc **thực tế hiện tại** của RigMat
 |                              |                                          |
 |         [RigMateBridgeClient (Background Daemon Thread)]                |
 |               ^                                                         |
-|               | (Tự động đọc runtime auth_token)                        |
+|               | (Auto-discover runtime auth_token)                      |
 |               |                                                         |
 |         [%LOCALAPPDATA%/RigMate/bridge_state.json]                      |
 +------------------------------|------------------------------------------+
@@ -50,11 +54,11 @@ Tài liệu này mô tả kiến trúc **thực tế hiện tại** của RigMat
 |                                                                         |
 |  [FastAPI Bridge Server (127.0.0.1)]                                    |
 |         |                                                               |
-|         +---> [RuntimeStateManager] -> ghi bridge_state.json            |
+|         +---> [RuntimeStateManager] -> writes bridge_state.json         |
 |         |                                                               |
-|         +---> [SessionManager] (Giữ session_id & hủy task thật)         |
+|         +---> [SessionManager] (Session continuity & task cancellation) |
 |         |                                                               |
-|         +---> [StorageManager] (Atomic write, corrupt backup, Quota)    |
+|         +---> [StorageManager] (Atomic writes, corrupt backups, Quota)  |
 |         |                                                               |
 |         +---> [AI Provider Dispatcher]                                  |
 |                     |                                                   |

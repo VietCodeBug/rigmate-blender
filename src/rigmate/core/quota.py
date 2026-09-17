@@ -1,12 +1,13 @@
-"""Mô hình dữ liệu cho Thanh năng lượng và Hạn mức AI (AI Quota & Energy Level)."""
+"""Data models for AI Quota tracking and Energy Level visualization."""
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from pydantic import BaseModel, Field
+from rigmate.core.i18n import t
 
 
 class TokenUsage(BaseModel):
-    """Token tiêu thụ của lượt chat hoặc phiên làm việc hiện tại."""
+    """Token consumption for a single turn or session."""
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
@@ -22,35 +23,35 @@ class TokenUsage(BaseModel):
 
 class QuotaSnapshot(BaseModel):
     """
-    Thông tin hạn mức AI thực tế hoặc snapshot thủ công.
-    Phân biệt rõ:
-    - token tiêu thụ (turn/session)
-    - quota còn lại
-    - ngày hết hạn gói (plan_expiration) tách biệt với chu kỳ reset quota
+    AI Quota snapshot data.
+    Clearly distinguishes:
+    - Token usage (turn/session)
+    - Quota remaining
+    - Plan expiration (separate from quota reset frequency)
     """
     provider_name: str = "Unknown"
     model_name: str = "Unknown"
-    account_profile: str = "default"  # Hồ sơ tài khoản để tránh lẫn khi đổi user
+    account_profile: str = "default"  # Profile identifier to avoid cross-user contamination
 
-    # Nguồn dữ liệu: AUTOMATIC (đọc máy), MANUAL (nhập tay), DEMO (mô phỏng)
-    source: str = "AUTOMATIC"  # AUTOMATIC, MANUAL, DEMO, UNKNOWN
+    # Data source: AUTOMATIC (machine-read), MANUAL (user input), DEMO (simulated), UNKNOWN
+    source: str = "AUTOMATIC"
 
-    # Hạn mức còn lại và đơn vị
+    # Remaining and total quota
     quota_remaining: Optional[float] = None
     quota_total: Optional[float] = None
     quota_unit: str = "requests"  # requests, credits, percentage, tokens
 
-    # Thời điểm
+    # Timestamps
     last_updated: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    reset_at: Optional[str] = None         # Thời điểm reset hạn mức hàng ngày/tháng
-    plan_expiration: Optional[str] = None  # Thời điểm hết hạn gói tài khoản (trường riêng biệt)
+    reset_at: Optional[str] = None         # Periodic reset timestamp (e.g. daily/monthly)
+    plan_expiration: Optional[str] = None  # Account subscription expiration timestamp
 
-    # Đánh dấu dữ liệu cũ (stale)
+    # Stale data detection
     stale_threshold_hours: float = 24.0
 
     @property
     def is_stale(self) -> bool:
-        """Kiểm tra xem snapshot đã cũ so với thời gian hiện tại chưa."""
+        """Check if snapshot is older than stale threshold."""
         try:
             dt = datetime.fromisoformat(self.last_updated.replace("Z", "+00:00"))
             now = datetime.now(timezone.utc)
@@ -61,9 +62,9 @@ class QuotaSnapshot(BaseModel):
     @property
     def percentage(self) -> Optional[float]:
         """
-        Tính phần trăm thanh năng lượng:
-        Chỉ tính khi có đủ remaining và total (> 0) hoặc quota_unit là 'percentage'.
-        Không tự đoán mò khi thiếu dữ liệu.
+        Calculate energy percentage:
+        Only computed when remaining and total (>0) exist or unit is 'percentage'.
+        Does not speculate without basis.
         """
         if self.quota_remaining is None:
             return None
@@ -77,18 +78,18 @@ class QuotaSnapshot(BaseModel):
 
         return None
 
-    def format_energy_label(self) -> str:
-        """Tạo nhãn hiển thị trực quan cho thanh năng lượng UI."""
+    def format_energy_label(self, locale: Optional[str] = None) -> str:
+        """Format display label for UI energy bar with localization support."""
         source_tag = ""
         if self.source == "DEMO":
-            source_tag = " [DEMO]"
+            source_tag = f" {t('quota.tag_demo', locale=locale)}"
         elif self.source == "MANUAL":
-            source_tag = " [Nhập thủ công]"
+            source_tag = f" {t('quota.tag_manual', locale=locale)}"
         elif self.source == "UNKNOWN":
-            return "Chưa đọc được hạn mức tự động"
+            return t("quota.auto_unavailable", locale=locale)
 
         pct = self.percentage
-        stale_tag = " (Dữ liệu cũ)" if self.is_stale else ""
+        stale_tag = f" {t('quota.tag_stale', locale=locale)}" if self.is_stale else ""
 
         if pct is not None:
             if self.quota_total is not None:
@@ -98,4 +99,4 @@ class QuotaSnapshot(BaseModel):
         elif self.quota_remaining is not None:
             return f"{self.quota_remaining:g} {self.quota_unit}{source_tag}{stale_tag}"
         else:
-            return f"Không rõ hạn mức{source_tag}"
+            return f"{t('quota.unknown', locale=locale)}{source_tag}"

@@ -1,4 +1,4 @@
-"""Định nghĩa các công cụ MCP chuẩn mực cho chẩn đoán và thao tác rig."""
+"""Model Context Protocol (MCP) tool implementations for Blender diagnostic analysis."""
 
 from typing import Any, Dict, Optional
 from rigmate.core.models import (
@@ -12,19 +12,15 @@ from rigmate.core.analyzer import RigAnalyzer
 
 class RigMateMCPTools:
     """
-    Tập hợp các công cụ MCP để AI Agent kiểm tra Blender.
-    Hoạt động với dữ liệu thực từ Blender hoặc mock data.
+    Standard MCP tools exposed to AI Agents for inspecting and diagnosing Blender.
+    Operates on live Blender scene data or decoupled mock schemas.
     """
 
     def __init__(self, bpy_bridge_callback=None):
-        """
-        bpy_bridge_callback: Hàm callable gửi request tới Main Thread của Blender.
-        Nếu None, có thể dùng mock data phục vụ kiểm thử.
-        """
         self.bridge_cb = bpy_bridge_callback
 
     def inspect_scene(self, scene_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Công cụ 1: Đọc thông tin tổng quan scene Blender."""
+        """Tool 1: Read high-level scene overview and object summaries."""
         if scene_data:
             model = SceneInfo(**scene_data)
             return model.model_dump()
@@ -33,16 +29,16 @@ class RigMateMCPTools:
             "selected_object_names": [],
             "objects": [],
             "unit_system": "METRIC",
-            "note": "Không có scene_data được cung cấp.",
+            "note": "No scene_data provided.",
         }
 
     def inspect_mesh(self, mesh_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Công cụ 2: Đọc thông tin chi tiết mesh của object được chỉ định."""
+        """Tool 2: Read detailed mesh metrics (vertex count, modifiers, transforms)."""
         mesh = MeshInfo(**mesh_data)
         return mesh.model_dump()
 
     def inspect_armature(self, armature_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Công cụ 3: Đọc armature, danh sách xương, quan hệ cha-con và liên kết."""
+        """Tool 3: Read armature bone list, hierarchy and deformation flags."""
         armature = ArmatureInfo(**armature_data)
         return armature.model_dump()
 
@@ -51,10 +47,7 @@ class RigMateMCPTools:
         mesh_data: Optional[Dict[str, Any]] = None,
         armature_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """
-        Công cụ 4: Báo cáo sơ bộ tình trạng rig dựa trên dữ liệu quan sát được.
-        Đặc thù mô hình Hunyuan 3D + Meshy và xuất Godot.
-        """
+        """Tool 4: Diagnostic report on rig and mesh readiness for Godot."""
         mesh = MeshInfo(**mesh_data) if mesh_data else None
         armature = ArmatureInfo(**armature_data) if armature_data else None
 

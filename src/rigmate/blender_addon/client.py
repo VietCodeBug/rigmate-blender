@@ -1,17 +1,20 @@
-"""Client HTTP giao tiếp từ Blender Add-on tới Bridge chạy nền trên background thread."""
+"""HTTP client communicating with RigMate Bridge asynchronously on background threads."""
 
 import json
 import threading
 import urllib.request
 import urllib.error
 from typing import Any, Callable, Dict, Optional
-
-
 from rigmate.storage.runtime_state import RuntimeStateManager
 
 
+class BridgeClientError(Exception):
+    """Base exception for RigMate bridge communication failures."""
+    pass
+
+
 class RigMateBridgeClient:
-    """Client giao tiếp qua HTTP với Bridge Localhost (không làm đứng UI Blender)."""
+    """HTTP Client communicating with local Bridge without freezing Blender main thread."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8765, auth_token: str = ""):
         self.host = host
@@ -21,12 +24,11 @@ class RigMateBridgeClient:
         self.current_thread: Optional[threading.Thread] = None
         self.state_manager = RuntimeStateManager()
 
-        # Tự động phát hiện token nếu chưa được cung cấp
         if not self.auth_token:
             self.discover_token()
 
     def discover_token(self) -> bool:
-        """Tự động tìm kiếm runtime token từ AppData do Bridge ghi ra."""
+        """Discover runtime auth token from local AppData written by Bridge."""
         state = self.state_manager.load_state(check_stale=True)
         if state and state.auth_token:
             self.auth_token = state.auth_token
@@ -37,7 +39,7 @@ class RigMateBridgeClient:
         return False
 
     def get_auth_headers(self) -> Dict[str, str]:
-        """Tạo headers kèm token. Nếu chưa có token, thử discover lại một lần."""
+        """Construct HTTP headers with token; attempts rediscovery if token is missing."""
         if not self.auth_token:
             self.discover_token()
         return {
@@ -46,8 +48,7 @@ class RigMateBridgeClient:
         }
 
     def check_health(self, timeout: float = 2.0) -> Dict[str, Any]:
-        """Kiểm tra bridge có đang chạy không (đồng bộ nhanh)."""
-        # Thử refresh token khi kiểm tra kết nối
+        """Fast synchronous health check."""
         self.discover_token()
         url = f"{self.base_url}/health"
         try:
@@ -70,7 +71,7 @@ class RigMateBridgeClient:
         on_error: Callable[[str], None],
         timeout: float = 40.0,
     ):
-        """Gửi yêu cầu trò chuyện bất đồng bộ trong thread riêng để không freeze Blender UI."""
+        """Send chat request asynchronously in a daemon thread to avoid blocking UI."""
         def _worker():
             url = f"{self.base_url}/chat"
             payload = json.dumps({
@@ -87,17 +88,17 @@ class RigMateBridgeClient:
                     data = json.loads(response.read().decode("utf-8"))
                     on_success(data)
             except urllib.error.HTTPError as e:
-                on_error(f"Lỗi HTTP {e.code}: {e.reason}")
+                on_error(f"HTTP Error {e.code}: {e.reason}")
             except urllib.error.URLError as e:
-                on_error(f"Không thể kết nối Bridge tại {self.base_url}: {e.reason}")
+                on_error(f"Cannot connect to Bridge at {self.base_url}: {e.reason}")
             except Exception as e:
-                on_error(f"Lỗi gửi yêu cầu: {e}")
+                on_error(f"Request error: {e}")
 
         self.current_thread = threading.Thread(target=_worker, daemon=True)
         self.current_thread.start()
 
     def cancel_request(self, session_id: str) -> bool:
-        """Gửi lệnh hủy yêu cầu đang chạy."""
+        """Send cancellation signal for active request."""
         url = f"{self.base_url}/cancel"
         payload = json.dumps({"session_id": session_id}).encode("utf-8")
         headers = self.get_auth_headers()
@@ -110,7 +111,7 @@ class RigMateBridgeClient:
             return False
 
     def get_quota(self, profile: str = "default") -> Dict[str, Any]:
-        """Lấy snapshot quota hiện tại."""
+        """Fetch active quota snapshot from Bridge."""
         url = f"{self.base_url}/quota?profile={profile}"
         headers = self.get_auth_headers()
         try:
@@ -130,7 +131,7 @@ class RigMateBridgeClient:
         account_profile: str = "default",
         plan_expiration: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Gửi snapshot hạn mức thủ công lên Bridge và persist vào storage."""
+        """Post manual quota snapshot to Bridge and persist to local storage."""
         url = f"{self.base_url}/quota/manual"
         payload = json.dumps({
             "provider_name": provider_name,

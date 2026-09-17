@@ -1,4 +1,4 @@
-"""Kiểm thử phản hồi provider, xử lý thiếu CLI (UNVERIFIED_ENV), timeout và hủy tác vụ."""
+"""Tests for provider responses, unverified environment handling, timeout, and cancellation."""
 
 import asyncio
 import pytest
@@ -13,7 +13,7 @@ def test_mock_provider_responses():
     provider = MockAIProvider()
     assert provider.provider_id == "mock"
 
-    msgs = [ChatMessage(role="user", content="Tôi muốn kiểm tra chẩn đoán mô hình")]
+    msgs = [ChatMessage(role="user", content="I want to inspect character model")]
     resp = asyncio.run(provider.generate_response(msgs, session_id="s1"))
 
     assert resp.text is not None
@@ -28,10 +28,10 @@ def test_mock_provider_responses():
 
 
 def test_antigravity_provider_unverified_fallback():
-    # Khi chạy trên máy thiếu CLI agy / SDK, provider trả về UNVERIFIED_ENV rõ ràng, không crash
+    # Without agy CLI or SDK installed, provider returns UNVERIFIED_ENV gracefully without crashing
     provider = AntigravityProvider()
 
-    # Giả lập môi trường chưa có CLI
+    # Simulate environment without CLI
     provider.cli_path = None
     provider.sdk_available = False
 
@@ -41,7 +41,7 @@ def test_antigravity_provider_unverified_fallback():
     assert "UNVERIFIED_ENV" in resp.text
     assert resp.raw_metadata.get("status") == "UNVERIFIED_ENV"
 
-    # Hạn mức báo UNKNOWN, không tự đoán mò
+    # Quota reported as UNKNOWN
     quota = asyncio.run(provider.fetch_quota_snapshot())
     assert quota.source == "UNKNOWN"
     assert quota.quota_remaining is None
@@ -56,34 +56,35 @@ def test_session_manager_and_cancellation(temp_storage_dir):
         session = session_mgr.create_session(provider)
         assert session.session_id is not None
 
-        # Gửi tin nhắn thành công
+        # Send message
         resp = await session_mgr.send_message(
             session_id=session.session_id,
-            user_message="Xin chào",
+            user_message="Hello RigMate",
             provider=provider,
         )
         assert resp.text is not None
         assert len(session.messages) == 2  # user + assistant
 
-        # Kiểm tra lưu vào storage
+        # Check storage persistence
         saved_history = storage.load_chat_history(session.session_id)
         assert len(saved_history) == 2
 
-        # Kiểm tra hủy tác vụ (Task Cancellation)
+        # Task cancellation test
         task = asyncio.create_task(
             session_mgr.send_message(
                 session_id=session.session_id,
-                user_message="Một tác vụ đang xử lý dài...",
+                user_message="A long-running request...",
                 provider=provider,
                 timeout_seconds=10.0,
             )
         )
-        # Hủy ngay lập tức
+        # Cancel immediately
         await asyncio.sleep(0.01)
         cancelled = session_mgr.cancel_active_request(session.session_id)
         assert cancelled is True
 
         result_resp = await task
-        assert "[Đã hủy]" in result_resp.text
+        assert "[Cancelled]" in result_resp.text
 
     asyncio.run(_async_flow())
+

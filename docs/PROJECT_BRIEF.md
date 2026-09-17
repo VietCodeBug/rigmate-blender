@@ -1,19 +1,20 @@
-# BẢN TÓM TẮT DỰ ÁN RIGMATE (PROJECT BRIEF)
+# RigMate Project Brief
 
-## 1. Tầm Nhìn Sản Phẩm
-**RigMate** là trợ lý AI mã nguồn mở tích hợp trực tiếp bên trong Blender, sinh ra nhằm giải phóng người sáng tạo nội dung, nghệ sĩ độc lập (indie game developer), và người dùng ít kiến thức 3D khỏi sự phức tạp của kỹ thuật rigging và animation setup.
+## 1. Product Vision
+**RigMate** is an open-source AI assistant embedded directly inside Blender. It empowers content creators, indie game developers, and users with limited 3D rigging expertise to inspect, adjust, and prepare character rigs for real-time game engines.
 
-## 2. Quy Trình Thực Tế (Target Pipeline)
-1. **Tạo mô hình AI**: Người dùng sinh mesh 3D từ các công cụ tạo sinh (tiêu biểu là **Tencent Hunyuan 3D**). Mô hình thường có mật độ đỉnh dày (~50.000 đỉnh) và bàn tay dính liền hoặc dạng bàn tay nắm.
-2. **Auto-Rigging cơ bản**: Mô hình được chuyển qua **Meshy** (hoặc Tripo/Mixamo) để tự động tạo khung xương cơ bản.
-3. **Nhập vào Blender**: Người dùng mở file trong Blender.
-4. **Đồng hành cùng RigMate**:
-   - Chẩn đoán sơ bộ các lỗi phổ biến (Transform chưa apply, scale lệch, thừa đỉnh đối với game engine).
-   - Nhận diện heuristic cấu trúc ngón tay (không khẳng định sai sót chỉ vì tên xương khác quy ước).
-   - Hỗ trợ các bước tinh chỉnh xương bàn tay, chuẩn bị weight painting và kiểm tra tư thế.
-5. **Đích đến**: Xuất nhân vật hoạt họa hoàn chỉnh sang **Godot Engine** (định dạng glTF 2.0 / .glb).
+## 2. Target Pipeline
+1. **Generative 3D Creation**: The user generates a 3D character mesh using generative tools (specifically **Tencent Hunyuan 3D**). These models typically have dense topology (~50,000 vertices) and fused or mitten-like hands.
+2. **Auto-Rigging**: The model is auto-rigged using **Meshy** (or Mixamo/Tripo) to generate a basic skeleton.
+3. **Blender Import**: The rigged asset is imported into Blender.
+4. **Assisted Inspection & Refinement with RigMate**:
+   - Inspect common integration issues (unapplied transforms, inconsistent scale, vertex density considerations).
+   - Heuristically analyze finger bone structures without dogmatic assumptions (missing names do not strictly imply defective models).
+   - Assist in bone adjustments, skin weight verification, and rest pose checking.
+5. **Target Destination**: Clean export to **Godot Engine** via glTF 2.0 (`.glb`).
 
-## 3. Định Vị Kỹ Thuật
-- **Không phải AI tạo model từ đầu**: RigMate không tạo mesh từ text prompt, mà hỗ trợ kiểm tra, chẩn đoán và chỉnh sửa nhân vật có sẵn trong Blender.
-- **Không đánh giá topology thuần túy qua số đỉnh**: Số lượng đỉnh dày (~50k) được cảnh báo về mặt hiệu năng game engine thời gian thực, không đồng nhất với việc mô hình bị lỗi mesh.
-- **Tương tác đàm thoại tự nhiên kết hợp công cụ MCP**: Người dùng ra lệnh bằng ngôn ngữ tự nhiên ngay trong tab Sidebar của Blender; hệ thống AI phân tích và điều phối các công cụ thao tác Blender một cách an toàn.
+## 3. Technical Positioning
+- **Not a Text-to-3D Generator**: RigMate does not generate 3D meshes from scratch; it assists with inspection, diagnosis, and guided modification within Blender.
+- **Context-Aware Performance Analysis**: A dense vertex count (~50k vertices) is highlighted as a real-time rendering consideration for Godot, not as an intrinsic mesh defect.
+- **Conversational Assistant & MCP Tool Dispatch**: Users interact naturally via the Blender Sidebar tab while AI providers orchestrate safe scene inspection tools via the Model Context Protocol (MCP).
+- **English-First Technical Foundation**: All technical internals, comments, error codes, and server logs are standardized in English. Multilingual end-user localization (e.g. Vietnamese) is handled via a dedicated i18n layer.

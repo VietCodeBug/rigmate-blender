@@ -1,4 +1,4 @@
-"""Server Bridge giao tiếp cục bộ (Localhost only) giữa Blender Add-on và AI Engine."""
+"""Localhost HTTP Bridge server for communication between Blender Add-on and AI Engine."""
 
 import secrets
 from typing import Any, Dict, Optional
@@ -35,9 +35,9 @@ class ManualQuotaPayload(BaseModel):
 
 class BridgeServer:
     """
-    HTTP/REST Bridge server chỉ lắng nghe localhost (127.0.0.1)
-    Bảo vệ bằng token xác thực ngẫu nhiên sinh khi khởi động.
-    Ghi runtime state vào AppData để Blender Add-on phát hiện tự động an toàn.
+    HTTP/REST Bridge server binding localhost (127.0.0.1) only.
+    Protected by a randomly generated runtime authentication token.
+    Saves runtime state to AppData for seamless discovery by Blender Add-on.
     """
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8765, save_state: bool = True):
@@ -48,7 +48,7 @@ class BridgeServer:
         self.session_manager = SessionManager(self.storage)
         self.state_manager = RuntimeStateManager(self.storage.base_dir)
 
-        # Mặc định khởi động với MockProvider an toàn
+        # Default to safe MockAIProvider
         self.current_provider: BaseAIProvider = MockAIProvider()
 
         if save_state:
@@ -57,7 +57,7 @@ class BridgeServer:
         self.app = self._create_app()
 
     def _publish_runtime_state(self):
-        """Xuất thông tin runtime state cho các process cục bộ khác (Blender)."""
+        """Publish runtime state metadata for local clients (Blender)."""
         state = BridgeRuntimeState(
             host=self.host,
             port=self.port,
@@ -66,7 +66,7 @@ class BridgeServer:
         self.state_manager.save_state(state)
 
     def cleanup_state(self):
-        """Dọn dẹp state khi tắt server."""
+        """Clean up runtime state file on shutdown."""
         self.state_manager.clear_state()
 
     def set_provider(self, provider: BaseAIProvider):
@@ -74,7 +74,7 @@ class BridgeServer:
 
     def _verify_token(self, x_rigmate_token: Optional[str] = Header(None)):
         if not x_rigmate_token or x_rigmate_token != self.auth_token:
-            raise HTTPException(status_code=401, detail="Xác thực cục bộ thất bại (Invalid Auth Token).")
+            raise HTTPException(status_code=401, detail="Local authentication failed: Invalid Auth Token.")
 
     def _create_app(self) -> FastAPI:
         app = FastAPI(title="RigMate Local Bridge", version="0.1.0")
@@ -111,10 +111,10 @@ class BridgeServer:
 
         @app.get("/quota", dependencies=[Depends(self._verify_token)])
         async def get_quota(profile: str = "default"):
-            # Thử đọc từ provider nếu là quota provider
+            # Fetch from provider if supported
             if hasattr(self.current_provider, "fetch_quota_snapshot"):
                 snapshot = await self.current_provider.fetch_quota_snapshot(profile)  # type: ignore
-                # Nếu không đọc tự động được, tìm snapshot nhập thủ công đã lưu trong storage
+                # Fallback to saved manual quota snapshot if automatic is unknown
                 if snapshot.source == "UNKNOWN":
                     saved = self.storage.load_quota_snapshot(
                         profile,

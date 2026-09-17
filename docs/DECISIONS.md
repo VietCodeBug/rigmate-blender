@@ -1,53 +1,60 @@
-# QUYẾT ĐỊNH KIẾN TRÚC KỸ THUẬT (ARCHITECTURAL DECISIONS)
+# Architectural Decision Records (ADR)
 
-Tài liệu này lưu giữ các quyết định kiến trúc quan trọng (ADR - Architecture Decision Records) của RigMate, lý do lựa chọn và các phương án đánh đổi.
-
----
-
-## ADR-01: Xác thực Local Bridge qua Runtime State Discovery
-- **Bối cảnh**: Bridge Server và Blender Add-on là hai process riêng biệt chạy trên cùng một máy tính cá nhân. Bridge cần bảo vệ các endpoint POST nhạy cảm (`/chat`, `/cancel`, `/quota/manual`) để tránh request giả mạo hoặc CSRF từ trình duyệt, nhưng người dùng không nên phải copy-paste token thủ công mỗi lần mở Blender.
-- **Quyết định**:
-  - Khi Bridge khởi động, sinh token ngẫu nhiên an toàn `secrets.token_hex(16)`.
-  - Ghi runtime state gồm `host`, `port`, `auth_token`, `pid`, `started_at` vào file `bridge_state.json` trong thư mục AppData cục bộ của hệ điều hành (`%LOCALAPPDATA%\RigMate` trên Windows).
-  - File được ghi nguyên tử (Atomic write qua temporary file) để tránh race condition hoặc hỏng file khi crash.
-  - Blender client tự động đọc `bridge_state.json` khi bấm "Kiểm tra" hoặc gửi request đầu tiên. Có cơ chế kiểm tra `is_stale()` (nếu quá 12 giờ hoặc server cũ đã tắt).
-  - Không bao giờ commit token vào Git và không lưu token trong thư mục repository.
-- **Hệ quả**: Kết nối diễn ra hoàn toàn tự động (zero-config) đối với người dùng mà vẫn đảm bảo 100% request được bảo vệ bởi xác thực token.
+This document tracks key architectural decisions, rationale, and technical trade-offs in RigMate.
 
 ---
 
-## ADR-02: Ranh Giới Đóng Gói Giữa Blender Python và External Python
-- **Bối cảnh**: Blender đi kèm với một môi trường Python nội bộ (Embedded Python). Người dùng không nên (và thường không thể) cài đặt các dependency nặng (FastAPI, Uvicorn, PyTorch, Pytest...) vào Python của Blender.
-- **Quyết định**:
-  - Chia hệ thống thành 2 phân vùng rõ rệt:
-    1. **Blender Add-on Runtime**: Chạy trong Blender Python, chỉ phụ thuộc vào `bpy`, `mathutils`, thư viện chuẩn (`urllib`, `json`, `threading`), cùng hai package nhẹ được đóng gói kèm: `rigmate.core` và `rigmate.storage`.
-    2. **Bridge & MCP Runtime**: Chạy trong môi trường Python ngoài (Virtual Environment), chứa FastAPI, Uvicorn, Pydantic, MCP SDK, AI Provider adapters.
-  - Khi script `scripts/package_addon.py` đóng gói, nó đưa cả `core/` và `storage/` vào thư mục `rigmate/` của ZIP để khi giải nén vào `scripts/addons/rigmate/`, các import nội bộ `from rigmate.core...` đều phân giải chính xác mà không đòi hỏi cài đặt gói rigmate ngoài hệ thống.
-- **Hệ quả**: Add-on cài đặt thành công 1-click qua Blender Preferences mà không bị lỗi thiếu package hoặc xung đột thư viện.
+## ADR-01: Local Bridge Authentication via Runtime State Discovery
+- **Context**: The Bridge Server and Blender Add-on run as separate local processes. The Bridge must protect sensitive POST endpoints (`/chat`, `/cancel`, `/quota/manual`) against unauthorized access or browser CSRF without requiring manual copy-pasting of API keys by the user.
+- **Decision**:
+  - On Bridge startup, generate a cryptographic token using `secrets.token_hex(16)`.
+  - Atomically write runtime state (`host`, `port`, `auth_token`, `pid`, `started_at`) to `%LOCALAPPDATA%\RigMate\bridge_state.json`.
+  - The Blender Client automatically reads `bridge_state.json` during connection checks and request dispatches.
+  - Stale state detection (`is_stale()`) verifies PID liveness and timestamp thresholds (12 hours).
+  - Tokens are never committed to version control and never stored in workspace repositories.
+- **Consequences**: Seamless zero-config user experience combined with authenticated request protection.
 
 ---
 
-## ADR-03: Tính Minh Bạch Tuyệt Đối Của Hạn Mức & Thanh Năng Lượng (Quota Truthfulness)
-- **Bối cảnh**: Các nhà cung cấp AI thường có cách tính hạn mức khác nhau (theo ngày, theo tháng, theo credits hoặc theo token). Việc tự động suy diễn phần trăm khi thiếu dữ liệu dễ gây hiểu nhầm nghiêm trọng cho người dùng.
-- **Quyết định**:
-  - Phân tách rõ 3 đại lượng:
-    1. `last_tokens_used`: Token tiêu thụ của lượt/phiên chat hiện tại (Prompt + Completion).
-    2. `quota_remaining`: Hạn mức tài khoản còn lại.
-    3. `plan_expiration`: Thời hạn thuê bao gói (trường riêng biệt, không gộp với chu kỳ reset quota hàng ngày/tháng).
-  - Nguồn dữ liệu phải gắn nhãn rõ ràng:
-    - `[Tự động]`: Khi nhà cung cấp có API máy đọc.
-    - `[Nhập thủ công]`: Khi người dùng nhập snapshot từ `/usage`.
-    - `[DEMO]`: Khi chạy Mock Provider.
-    - `Chưa đọc được hạn mức tự động`: Khi không có dữ liệu máy đọc (source `UNKNOWN`).
-  - Thanh năng lượng slider (%) chỉ dựng khi có đầy đủ cả `remaining` và `total > 0`. Nếu không đủ, chỉ hiển thị số lượng thô hoặc nhãn thông báo, tuyệt đối không suy đoán phần trăm giả.
-- **Hệ quả**: Giao diện trung thực, đáng tin cậy và không tạo cảm giác AI "ảo tưởng" về tài nguyên.
+## ADR-02: Distribution Boundary Between Blender Python and External Python
+- **Context**: Blender uses an embedded Python distribution. End users cannot easily install external compiled wheels or server dependencies (FastAPI, Uvicorn, PyTorch, Pytest) into Blender's internal environment.
+- **Decision**:
+  - Partition the codebase into two operational tiers:
+    1. **Blender Add-on Runtime**: Runs within Blender Python, depending only on `bpy`, `mathutils`, Python standard libraries, and bundled packages: `rigmate.core` and `rigmate.storage`.
+    2. **Bridge & MCP Server**: Runs in an external Python virtual environment containing FastAPI, Uvicorn, Pydantic, and MCP SDK.
+  - `scripts/package_addon.py` bundles `core/` and `storage/` directly into the ZIP under the `rigmate/` root package so internal imports (`from rigmate.core...`) resolve cleanly in Blender.
+- **Consequences**: 1-click add-on installation via Blender Preferences without external dependency errors.
 
 ---
 
-## ADR-04: Giữ Gìn Phiên Hội Thoại & Hủy Tác Vụ Thật (Session Continuity & Cancellation)
-- **Bối cảnh**: Khi chat với AI trợ lý rig, ngữ cảnh trao đổi qua các lượt là cốt lõi để AI nhớ đối tượng đang xử lý. Khi người dùng bấm "Dừng lại", thao tác không được chỉ đổi cờ UI mà phải ngắt request đang chạy trên server.
-- **Quyết định**:
-  - Sau lượt chat đầu tiên, Bridge trả về `session_id`. Blender Add-on lưu `props.active_session_id`.
-  - Các lượt chat kế tiếp gửi kèm `active_session_id`.
-  - Bấm "Mới" (New Session) xóa `active_session_id` để lượt sau sinh phiên mới.
-  - Bấm "Dừng lại" gọi endpoint `POST /cancel` với `session_id`, `SessionManager` gọi `task.cancel()` trên `asyncio.Task` đang chạy trước khi reset trạng thái UI.
+## ADR-03: Strict Truthfulness in Quota & Energy Level Display
+- **Context**: AI providers report rate limits and quotas under diverse paradigms (daily requests, monthly credits, token caps). Fabricating or guessing percentage values when machine-readable data is missing misleads the user.
+- **Decision**:
+  - Strictly differentiate three independent quantities:
+    1. `last_tokens_used`: Turn-level token consumption (Prompt + Completion).
+    2. `quota_remaining`: Account-level remaining balance.
+    3. `plan_expiration`: Subscription expiration date (distinct from daily/monthly reset windows).
+  - Explicitly label all data sources: `[Automatic]`, `[Manual Entry]`, or `[DEMO]`.
+  - Return `Automatic quota data is unavailable` when machine-readable endpoints do not exist (`UNKNOWN` source).
+  - Render the percentage slider only when both `remaining` and `total > 0` are confirmed.
+- **Consequences**: High transparency and user trust with zero fabricated quota indicators.
+
+---
+
+## ADR-04: Session Continuity and Actual Request Cancellation
+- **Context**: Conversational rig assistance requires multi-turn memory. Cancelling a request must abort execution on the server rather than merely resetting a client-side UI flag.
+- **Decision**:
+  - The Bridge issues a `session_id` on the initial turn. The add-on stores this in `props.active_session_id` and attaches it to subsequent messages.
+  - Clicking "New Session" resets `active_session_id`.
+  - Clicking "Stop" dispatches `POST /cancel` with `session_id`. `SessionManager` invokes `task.cancel()` on the running `asyncio.Task` before resetting the UI.
+- **Consequences**: Proper multi-turn context retention and immediate server-side cancellation of long-running calls.
+
+---
+
+## ADR-05: English-First Canonical Codebase and Localization Layer
+- **Context**: Open-source contributors and automated tools require a standard international technical baseline. Business logic must not hardcode specific regional languages.
+- **Decision**:
+  - Canonical language for source code, comments, docstrings, internal errors, exception classes, logs, and technical documentation is strictly English.
+  - End-user facing UI strings, reports, and dialogs are routed through `rigmate.core.i18n.t(key, locale=...)`.
+  - English (`en`) is the default and fallback locale. Vietnamese (`vi`) is a first-class supported locale.
+- **Consequences**: High international maintainability, extensible locale support, and zero hardcoded natural language strings in business logic.

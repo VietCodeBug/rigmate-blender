@@ -1,5 +1,3 @@
-"""Module core của RigMate."""
-
 from rigmate.core.models import (
     SceneInfo,
     MeshInfo,
@@ -11,6 +9,7 @@ from rigmate.core.models import (
 )
 from rigmate.core.analyzer import RigAnalyzer
 from rigmate.core.quota import QuotaSnapshot, TokenUsage
+from rigmate.core.i18n import t, set_locale, get_locale, register_locale, get_available_locales
 
 __all__ = [
     "SceneInfo",
@@ -23,4 +22,9 @@ __all__ = [
     "RigAnalyzer",
     "QuotaSnapshot",
     "TokenUsage",
+    "t",
+    "set_locale",
+    "get_locale",
+    "register_locale",
+    "get_available_locales",
 ]

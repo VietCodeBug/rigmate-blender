@@ -1,4 +1,4 @@
-"""Giao diện chung (Interface) cho các AI Providers và Quota Providers."""
+"""Common interfaces and base abstractions for AI and Quota Providers."""
 
 from abc import ABC, abstractmethod
 from typing import Any, AsyncGenerator, Dict, List, Optional
@@ -7,14 +7,14 @@ from rigmate.core.quota import QuotaSnapshot, TokenUsage
 
 
 class ChatMessage(BaseModel):
-    """Một tin nhắn trong chuỗi hội thoại."""
+    """A single turn chat message."""
     role: str  # user, assistant, system
     content: str
-    context_data: Optional[Dict[str, Any]] = None  # Dữ liệu đối tượng gửi kèm theo
+    context_data: Optional[Dict[str, Any]] = None  # Optional compact context payload
 
 
 class ProviderResponse(BaseModel):
-    """Phản hồi tổng hợp từ Provider."""
+    """Standardized response from AI Provider."""
     text: str
     token_usage: Optional[TokenUsage] = None
     suggested_actions: List[str] = Field(default_factory=list)
@@ -22,18 +22,18 @@ class ProviderResponse(BaseModel):
 
 
 class BaseAIProvider(ABC):
-    """Interface cơ sở cho các nhà cung cấp AI."""
+    """Base interface for AI inference providers."""
 
     @property
     @abstractmethod
     def provider_id(self) -> str:
-        """Định danh provider (vd: mock, antigravity_cli)."""
+        """Provider identifier (e.g. mock, antigravity)."""
         pass
 
     @property
     @abstractmethod
     def model_name(self) -> str:
-        """Tên mô hình đang dùng."""
+        """Active model identifier."""
         pass
 
     @abstractmethod
@@ -43,7 +43,7 @@ class BaseAIProvider(ABC):
         session_id: str,
         timeout_seconds: float = 30.0,
     ) -> ProviderResponse:
-        """Sinh câu trả lời từ AI."""
+        """Generate response from AI provider."""
         pass
 
     @abstractmethod
@@ -52,14 +52,14 @@ class BaseAIProvider(ABC):
         messages: List[ChatMessage],
         session_id: str,
     ) -> AsyncGenerator[str, None]:
-        """Stream từng token về giao diện người dùng."""
+        """Stream response tokens as they arrive."""
         pass
 
 
 class BaseQuotaProvider(ABC):
-    """Interface cơ sở để đọc hạn mức (Quota). Thiết kế mở rộng thêm provider sau này."""
+    """Base interface for querying account/model quota metrics."""
 
     @abstractmethod
     async def fetch_quota_snapshot(self, account_profile: str = "default") -> QuotaSnapshot:
-        """Đọc snapshot hạn mức hiện tại."""
+        """Fetch current quota snapshot."""
         pass
