@@ -37,12 +37,23 @@ D:\Ark_3\RigMate\
 │       │   ├── schema_version.py # Lightweight semantic schema compatibility parser
 │       │   ├── project.py      # ProjectManifest core model (local-only, no cloud account)
 │       │   ├── redaction.py    # Recursive data redaction for support bundles
-│       │   └── retry.py        # Bounded exponential backoff policy for idempotent reads
+│       │   ├── retry.py        # Bounded exponential backoff policy for idempotent reads
+│       │   ├── errors.py       # Centralized machine-readable structured error model
+│       │   ├── ids.py          # Collision-safe UUID prefixed identifier generation
+│       │   ├── time_utils.py   # Canonical timezone-aware UTC datetime & ISO 8601 formatting
+│       │   ├── events.py       # Generic monotonic event envelope
+│       │   ├── operations.py   # Blueprint operation envelope contract (inspect/preview/apply)
+│       │   ├── receipts.py     # Verified operation execution outcome receipt
+│       │   ├── capabilities.py # Generic system, host, engine, and provider capability registry
+│       │   ├── support_bundle.py # Support bundle manifest metadata model
+│       │   └── json_types.py   # Lightweight JSON compatibility validator
 │       ├── storage/            # Local data persistence
 │       │   ├── paths.py        # %LOCALAPPDATA%/RigMate
 │       │   ├── manager.py      # Atomic writes, corrupt file backup, UTF-8 JSON
 │       │   ├── runtime_state.py# bridge_state.json discovery token manager
-│       │   └── retention.py    # Pure checkpoint retention calculator (budget & count bounds)
+│       │   ├── retention.py    # Pure checkpoint retention calculator (budget & count bounds)
+│       │   ├── json_io.py      # Atomic JSON & crash-tolerant JSONL streaming persistence
+│       │   └── disk_budget.py  # Preflight disk space evaluation with safety margin
 │       ├── providers/          # AI Provider adapters
 │       │   ├── base.py         # Abstract interfaces BaseAIProvider, BaseQuotaProvider
 │       │   ├── capabilities.py # Provider capability matrix & evidence audit trail
@@ -61,7 +72,7 @@ D:\Ark_3\RigMate\
 │           ├── operators.py    # Operators for connection, chat, cancellation, quota dialog
 │           ├── client.py       # Asynchronous HTTP background client with token discovery
 │           └── bpy_inspectors.py # Context inspection converting bpy data to core schemas
-├── tests/                      # 63 pytest automated unit & integration tests
+├── tests/                      # 98 pytest automated unit & integration tests
 └── docs/                       # Architectural records, technical guides, checklists
 ```
 
@@ -101,7 +112,7 @@ python scripts/run_demo.py
 ## 4. Current Environment State
 - **Blender on Test Machine**: `REAL BLENDER TEST: NOT PERFORMED`.
 - **Antigravity CLI on Test Machine**: `REAL ANTIGRAVITY CLI: UNVERIFIED` (neither `agy` CLI nor SDK detected).
-- **Pure Python Tests**: 63/63 tests PASSED.
+- **Pure Python Tests**: 98/98 tests PASSED.
 
 ---
 

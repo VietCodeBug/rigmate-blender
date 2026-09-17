@@ -82,3 +82,43 @@ This document tracks key architectural decisions, rationale, and technical trade
   - Automate import validation via `tests/test_package_smoke.py`, which builds the ZIP, unzips to a clean temporary directory, and verifies module resolution outside Blender using a controlled stub `bpy`.
 - **Consequences**: Zero divergence between packaging and source; guaranteed import resolution inside standard Blender installations.
 
+---
+
+## ADR-07: Machine-Readable Structured Error Identifiers
+- **Context**: In conversational AI workflows, translating raw error strings or matching natural language substrings leads to fragile error handling.
+- **Decision**:
+  - Centralize canonical error codes (`HOST_UNAVAILABLE`, `CHECKPOINT_FAILED`, `QUOTA_EXHAUSTED`, etc.) in `src/rigmate/core/errors.py`.
+  - Internal exception messages and logging remain strictly English.
+  - UI translations route exclusively through machine-readable error codes (`t(f"error.{code}")`) and never drive business or branching logic.
+- **Consequences**: Deterministic error dispatch, zero localized string dependencies in business code.
+
+---
+
+## ADR-08: Timezone-Aware Canonical UTC Persistence
+- **Context**: Timestamps originating from multi-machine or local environments often cause desynchronization or ambiguity when local offsets are omitted.
+- **Decision**:
+  - Enforce timezone-aware UTC datetime instances across all models, journals, and receipts.
+  - Protocol persistence strictly uses canonical ISO 8601 strings ending in `Z` (e.g. `2026-09-17T08:00:00Z`).
+  - Naive datetimes are rejected at conversion boundaries (`src/rigmate/core/time_utils.py`).
+- **Consequences**: Consistent ordering across event streams, journals, and client synchronization.
+
+---
+
+## ADR-09: Operation vs. Receipt Boundary Separation
+- **Context**: Conflating an execution intent with its verified outcome causes false assumptions about tool success.
+- **Decision**:
+  - Separate tool execution intent into `OperationEnvelope` (`src/rigmate/core/operations.py`) and verified result into `OperationReceipt` (`src/rigmate/core/receipts.py`).
+  - In `apply` mode, an operation envelope strictly requires `prepared_plan_ref` and `checkpoint_ref` (except `checkpoint.create`).
+  - An operation receipt requires post-execution verification before reaching `completed` status.
+- **Consequences**: Prevents unverified mutation assumptions; aligns with the RigMate Blueprint contract.
+
+---
+
+## ADR-10: Evidence-Based Capability Declaration
+- **Context**: Inferring tool support merely from the existence of an executable or binary creates unreliable execution failures.
+- **Decision**:
+  - System and provider capabilities are explicitly registered with verifiable evidence (`CapabilityRegistry` in `src/rigmate/core/capabilities.py`, `ProviderCapabilities` in `src/rigmate/providers/capabilities.py`).
+  - Unknown capabilities default to unavailable/false.
+- **Consequences**: Trustworthy execution boundaries and clean preflight capability checks.
+
+
