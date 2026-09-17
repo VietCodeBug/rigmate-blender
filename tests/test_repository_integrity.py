@@ -16,6 +16,9 @@ def test_required_storage_source_files_exist():
         "retention.py",
         "json_io.py",
         "disk_budget.py",
+        "job_store.py",
+        "checkpoints.py",
+        "idempotency.py",
     ]
 
     for mod_name in required_storage_modules:
@@ -49,6 +52,14 @@ def test_required_core_source_files_exist():
         "capabilities.py",
         "support_bundle.py",
         "json_types.py",
+        "jobs.py",
+        "plans.py",
+        "checkpoints.py",
+        "executors.py",
+        "lock.py",
+        "recovery.py",
+        "timeline.py",
+        "job_service.py",
     ]
 
     for mod_name in required_core_modules:

@@ -131,5 +131,18 @@ This document tracks key architectural decisions, rationale, and technical trade
   - Implement automated repository integrity checks (`tests/test_repository_integrity.py` and `scripts/check_repo_integrity.py`) to verify that all architectural source modules are present and tracked by Git.
 - **Consequences**: Eliminates silent omissions of source code in fresh repository checkouts.
 
+---
+
+## ADR-12: Closed-Loop Execution Lifecycle, Event Journaling, and Checkpoint Engine
+- **Context**: Relying on in-memory state or believing tool execution success without postcondition verification risks silent failure, unacknowledged mutation side-effects (ACK loss), or data corruption after process restarts. Furthermore, RigMate does not provide a distributed ACID transaction across Blender, Godot, filesystem, and external AI providers.
+- **Decision**:
+  - Implement a closed-loop execution lifecycle governed by a strict canonical state machine (`JobStatus`) and an append-only event journal (`events.jsonl`).
+  - Preconditions are verified before apply. A pre-mutation snapshot is created using content-addressed blob storage (`.rigmate/blobs/xx/hash`).
+  - Document mutation operations require a local document-level writer lock (`.rigmate/locks/`). Document mutation locks are NEVER held while waiting for external AI responses, user inputs, or external agent planning.
+  - Operation idempotency is tracked durably with canonical request hashing (`.rigmate/idempotency/`).
+  - If a network drop or crash occurs after host mutation (ACK loss), the system queries host operation status via `query_status()` before deciding between `verifying` and `recovery_required`. It NEVER blindly reapplies.
+  - Recovery restores preserved files to verified non-destructive copies (`<name>.recovered.<timestamp>.<ext>`) without destructive live overwriting.
+- **Consequences**: Deterministic, inspectable, and crash-recoverable execution without invisible state.
+
 
 

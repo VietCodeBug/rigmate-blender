@@ -12,6 +12,9 @@ REQUIRED_TRACKED_FILES = [
     "src/rigmate/storage/retention.py",
     "src/rigmate/storage/json_io.py",
     "src/rigmate/storage/disk_budget.py",
+    "src/rigmate/storage/job_store.py",
+    "src/rigmate/storage/checkpoints.py",
+    "src/rigmate/storage/idempotency.py",
     "src/rigmate/core/errors.py",
     "src/rigmate/core/ids.py",
     "src/rigmate/core/time_utils.py",
@@ -21,6 +24,14 @@ REQUIRED_TRACKED_FILES = [
     "src/rigmate/core/capabilities.py",
     "src/rigmate/core/support_bundle.py",
     "src/rigmate/core/json_types.py",
+    "src/rigmate/core/jobs.py",
+    "src/rigmate/core/plans.py",
+    "src/rigmate/core/checkpoints.py",
+    "src/rigmate/core/executors.py",
+    "src/rigmate/core/lock.py",
+    "src/rigmate/core/recovery.py",
+    "src/rigmate/core/timeline.py",
+    "src/rigmate/core/job_service.py",
 ]
 
 

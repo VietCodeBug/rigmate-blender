@@ -73,3 +73,32 @@ This document describes the current architecture of RigMate v0.1 following integ
 |         +--- diagnose_rig                                               |
 +-------------------------------------------------------------------------+
 ```
+
+---
+
+## 3. Closed-Loop Execution Lifecycle & Checkpoint Engine
+
+RigMate enforces a strictly verifiable, crash-recoverable execution lifecycle for all mutation-capable jobs.
+
+```text
+       [queued]
+          |
+    [inspecting] <---> [needs_input]
+          |
+     [prepared] (preconditions verified + checkpoint acquired)
+          |
+      [applying] (under document single-writer lock)
+      /        \
+ [verifying]   [cancel_requested]
+   /       \          |
+[completed] [recovery_required]
+                 |
+            [recovered] (restored to non-destructive copy)
+```
+
+### Execution Invariants
+1. **Pre-mutation Checkpoint**: Before entering `applying`, all authorized target files are snapshotted to content-addressed blobs (`.rigmate/blobs/xx/hash`) with preflight disk budget verification.
+2. **Durable Event Journal**: All transitions append monotonic events to `.rigmate/jobs/<job_id>/events.jsonl` prior to atomic `job.json` updates.
+3. **Idempotency & ACK-Loss Protection**: Operations are tracked in `.rigmate/idempotency/` via canonical SHA-256 request hashes. If network drops after host mutation, `query_status()` discovers the executed mutation and prevents duplicate re-apply.
+4. **Verified Outcome**: `completed` strictly requires host postcondition verification (`verified_at` and `host_revision_after`).
+5. **Non-Destructive Recovery**: Restoring from a checkpoint materializes files to `<name>.recovered.<timestamp>.<ext>`, verifying restored hashes against the manifest without destructively overwriting live files.
