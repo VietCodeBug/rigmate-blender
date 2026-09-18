@@ -1,0 +1,57 @@
+{
+  "mesh": {
+    "name": "PartialFingerMesh",
+    "vertex_count": 25000,
+    "edge_count": 50000,
+    "polygon_count": 25000,
+    "has_armature_modifier": true,
+    "target_armature_name": "PartialArmature",
+    "transform": {
+      "location": [0.0, 0.0, 0.0],
+      "rotation_euler": [0.0, 0.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    "vertex_groups": ["Root", "LeftHand"],
+    "weights_summary": {
+      "unweighted_vertex_count": 0,
+      "max_weights_per_vertex": 3,
+      "exceeds_godot_max_weights": false
+    },
+    "materials_count": 1
+  },
+  "armature": {
+    "name": "PartialArmature",
+    "total_bones": 4,
+    "deform_bones_count": 4,
+    "root_bone_names": ["Root"],
+    "transform": {
+      "location": [0.0, 0.0, 0.0],
+      "rotation_euler": [0.0, 0.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    "bones": {
+      "Root": {
+        "name": "Root",
+        "parent_name": null,
+        "children_names": ["LeftHand"],
+        "head": [0.0, 0.0, 0.0],
+        "tail": [0.0, 0.0, 1.0],
+        "length": 1.0,
+        "connected": false,
+        "use_deform": true
+      },
+      "LeftHand": {
+        "name": "LeftHand",
+        "parent_name": "Root",
+        "children_names": ["thumb_l", "index_l"],
+        "head": [0.5, 0.0, 1.0],
+        "tail": [0.6, 0.0, 1.0],
+        "length": 0.1,
+        "connected": false,
+        "use_deform": true
+      },
+      "thumb_l": { "name": "thumb_l", "parent_name": "LeftHand", "children_names": [] },
+      "index_l": { "name": "index_l", "parent_name": "LeftHand", "children_names": [] }
+    }
+  }
+}

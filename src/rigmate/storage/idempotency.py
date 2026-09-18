@@ -29,27 +29,8 @@ class IdempotencyRecord(BaseModel):
     receipt: Optional[Dict[str, Any]] = None
 
 
-def compute_operation_request_hash(op: OperationEnvelope) -> str:
-    """
-    Compute canonical deterministic SHA-256 hash of operation intent.
-    Includes project_id, host_instance_id, document_id, tool, mode,
-    target_ids, expected_revision, arguments, prepared_plan_ref, checkpoint_ref.
-    Excludes ephemeral fields.
-    """
-    canonical_dict = {
-        "project_id": op.project_id,
-        "host_instance_id": op.host_instance_id,
-        "document_id": op.document_id,
-        "tool": op.tool,
-        "mode": op.mode.value,
-        "target_ids": sorted(op.target_ids),
-        "expected_revision": op.expected_revision,
-        "arguments": op.arguments,
-        "prepared_plan_ref": op.prepared_plan_ref,
-        "checkpoint_ref": op.checkpoint_ref,
-    }
-    encoded = json.dumps(canonical_dict, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+from rigmate.contracts.hashing import compute_operation_request_hash
+
 
 
 class IdempotencyRegistry:
@@ -62,8 +43,9 @@ class IdempotencyRegistry:
         self.reg_dir = self.storage_root / "idempotency"
 
     def _key_path(self, idempotency_key: str) -> Path:
-        safe_key = "".join(c if c.isalnum() or c in "-_" else "_" for c in idempotency_key)
-        return self.reg_dir / f"{safe_key}.json"
+        key_hash = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()
+        return self.reg_dir / f"{key_hash}.json"
+
 
     def check(self, op: OperationEnvelope) -> Optional[IdempotencyRecord]:
         """
@@ -101,11 +83,35 @@ class IdempotencyRegistry:
     ) -> IdempotencyRecord:
         """Persist or update idempotency record."""
         self.reg_dir.mkdir(parents=True, exist_ok=True)
+        key_file = self._key_path(op.idempotency_key)
+        current_hash = compute_operation_request_hash(op)
+
+        if key_file.is_file():
+            existing = IdempotencyRecord(**read_json(key_file))
+            if existing.request_hash != current_hash:
+                raise RigMateError(
+                    f"Cannot register idempotency key '{op.idempotency_key}': request intent differs from existing registration",
+                    code=RigMateErrorCode.IDEMPOTENCY_CONFLICT,
+                    details={"existing_op": existing.operation_id, "new_op": op.operation_id},
+                )
+            if existing.operation_id != op.operation_id:
+                raise RigMateError(
+                    f"Cannot register idempotency key '{op.idempotency_key}': operation_id '{op.operation_id}' does not match existing '{existing.operation_id}'",
+                    code=RigMateErrorCode.IDEMPOTENCY_CONFLICT,
+                    details={"existing_op": existing.operation_id, "new_op": op.operation_id},
+                )
+            # Updating receipt for existing record
+            if receipt:
+                existing.receipt = receipt.model_dump()
+                write_json_atomic(key_file, existing.model_dump())
+            return existing
+
         rec = IdempotencyRecord(
             idempotency_key=op.idempotency_key,
             operation_id=op.operation_id,
-            request_hash=compute_operation_request_hash(op),
+            request_hash=current_hash,
             receipt=receipt.model_dump() if receipt else None,
         )
-        write_json_atomic(self._key_path(op.idempotency_key), rec.model_dump())
+        write_json_atomic(key_file, rec.model_dump())
         return rec
+

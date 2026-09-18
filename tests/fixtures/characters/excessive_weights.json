@@ -1,0 +1,55 @@
+{
+  "mesh": {
+    "name": "ExcessiveWeightsMesh",
+    "vertex_count": 22000,
+    "edge_count": 44000,
+    "polygon_count": 22000,
+    "has_armature_modifier": true,
+    "target_armature_name": "WeightArmature",
+    "transform": {
+      "location": [0.0, 0.0, 0.0],
+      "rotation_euler": [0.0, 0.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    "vertex_groups": ["Root", "Spine"],
+    "weights_summary": {
+      "unweighted_vertex_count": 15,
+      "max_weights_per_vertex": 8,
+      "exceeds_godot_max_weights": true
+    },
+    "materials_count": 1
+  },
+  "armature": {
+    "name": "WeightArmature",
+    "total_bones": 2,
+    "deform_bones_count": 2,
+    "root_bone_names": ["Root"],
+    "transform": {
+      "location": [0.0, 0.0, 0.0],
+      "rotation_euler": [0.0, 0.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    "bones": {
+      "Root": {
+        "name": "Root",
+        "parent_name": null,
+        "children_names": ["Spine"],
+        "head": [0.0, 0.0, 0.0],
+        "tail": [0.0, 0.0, 1.0],
+        "length": 1.0,
+        "connected": false,
+        "use_deform": true
+      },
+      "Spine": {
+        "name": "Spine",
+        "parent_name": "Root",
+        "children_names": [],
+        "head": [0.0, 0.0, 1.0],
+        "tail": [0.0, 0.0, 1.8],
+        "length": 0.8,
+        "connected": true,
+        "use_deform": true
+      }
+    }
+  }
+}

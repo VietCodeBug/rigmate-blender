@@ -1,11 +1,10 @@
 """Pure standard-library data transfer objects (DTOs) for RigMate inspection.
 
-Decoupled completely from Pydantic and external server dependencies.
-Uses only Python standard library `dataclasses` and `typing`.
-Re-exports canonical DTOs from blender_addon.dto.
+Canonical DTOs live in `rigmate.contracts.dto` (pure Python standard library).
+Re-exported here for Core convenience without any dependency on blender_addon.
 """
 
-from rigmate.blender_addon.dto import (
+from rigmate.contracts.dto import (
     TransformData,
     BoneInfo,
     ArmatureInfo,

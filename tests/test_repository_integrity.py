@@ -65,3 +65,24 @@ def test_required_core_source_files_exist():
     for mod_name in required_core_modules:
         mod_path = core_dir / mod_name
         assert mod_path.is_file(), f"Missing required core source module: {mod_path}"
+
+
+def test_required_neutral_contract_source_files_exist():
+    """Verify that all neutral contract, analysis, and localization files exist."""
+    root_dir = Path(__file__).resolve().parent.parent
+    src_dir = root_dir / "src" / "rigmate"
+
+    required_files = [
+        src_dir / "contracts" / "__init__.py",
+        src_dir / "contracts" / "dto.py",
+        src_dir / "contracts" / "host.py",
+        src_dir / "contracts" / "hashing.py",
+        src_dir / "analysis" / "__init__.py",
+        src_dir / "analysis" / "rig.py",
+        src_dir / "localization" / "__init__.py",
+        src_dir / "localization" / "engine.py",
+    ]
+
+    for req in required_files:
+        assert req.is_file(), f"Missing required neutral source file: {req}"
+

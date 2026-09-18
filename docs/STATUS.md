@@ -10,9 +10,26 @@ This document provides a factual assessment of the current state of RigMate v0.1
 - **Real Blender Scene Inspection**: `REAL BLENDER SCENE INSPECTION: VERIFIED` (`BpyInspector` accurately extracts mesh vertex density, transforms, and armature hierarchies into standard DTOs).
 - **Mock Chat Pipeline**: `MOCK CHAT PIPELINE: VERIFIED` (End-to-end chat turn from Blender to Bridge to MockProvider and back).
 - **Real Antigravity Tool Execution**: `REAL ANTIGRAVITY TOOL EXECUTION: VERIFIED` (Direct command execution and automated packaging validated in real developer environment).
-- **Pure Python Automated Tests**: **134/134 tests PASSED** (100% test pass rate across analyzer, quota, providers, bridge auth, session flow, runtime state, storage, package smoke, i18n, path safety, file hashing, schema versions, project manifest, capabilities, redaction, retry, retention, structured errors, IDs, UTC time, JSON/JSONL I/O, events, operations, receipts, capability registry, disk budget, support bundle, JSON types, repository integrity, job state transitions, job store persistence, content-addressed checkpoints, restore-to-copy, idempotency registry, timeline trace, and crash recovery scenarios A through J).
+- **Pure Python Automated Tests**: **166/166 tests PASSED** (100% test pass rate across neutral contracts, architecture boundary, pure stdlib isolation, process-restart subprocess tests, analyzer, quota, providers, bridge auth, session flow, runtime state, storage, package smoke, i18n, path safety, file hashing, schema versions, project manifest, capabilities, redaction, retry, retention, structured errors, IDs, UTC time, JSON/JSONL I/O, events, operations, receipts, capability registry, disk budget, support bundle, JSON types, repository integrity, job state transitions, job store persistence, content-addressed checkpoints, restore-to-copy, idempotency registry, timeline trace, crash recovery scenarios A through J, host protocol JSON round-trip, read-only inspect/prepare, durable fake host persistence, host idempotency, true fresh process-restart ACK loss proof, crash matrix recovery, non-destructive restore, and 6 character analysis fixtures).
 
 ---
+
+## 2. Runtime Verification Evidence
+
+| Subsystem | Evidence Level | Notes |
+| :--- | :--- | :--- |
+| **CORE HOST PROTOCOL** | `VERIFIED` | Clean JSON round-trip, read-only inspect and prepare invariants, pure stdlib types |
+| **NEUTRAL CONTRACT LAYER** | `VERIFIED` | Pure stdlib contracts (`contracts/`, `analysis/`, `localization/`), zero Core -> Blender dependency |
+| **DURABLE FAKE HOST** | `VERIFIED` | Independent filesystem state directory, survives Python object destruction and process restart |
+| **FRESH OBJECT RECONSTRUCTION** | `VERIFIED` | Core A + Host A destroyed in RAM; Core B + Host B recover from disk, mutation count strictly 1 |
+| **REAL PYTHON PROCESS-RESTART ACK-LOSS** | `VERIFIED` | Multi-process subprocess proof (`phase_a_pid != phase_b_pid`, `os._exit(42)`, Phase B apply calls = 0, mutation count strictly 1) |
+| **REAL BLENDER HOST ADAPTER** | `UNVERIFIED` | Implementation reserved for machine with physical Blender runtime |
+| **REAL BLENDER MUTATION** | `NOT PERFORMED` | Intentionally not performed; machine has no physical Blender |
+| **REAL BLENDER ACK-LOSS** | `NOT PERFORMED` | Reserved for real Blender runtime experiments |
+| **REAL GODOT HOST** | `NOT PERFORMED` | Future milestone |
+
+---
+
 
 ## 2. Completed Milestones
 - **Core Diagnostics**:

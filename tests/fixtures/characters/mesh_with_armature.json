@@ -1,0 +1,75 @@
+{
+  "mesh": {
+    "name": "BoundCharacterMesh",
+    "vertex_count": 28000,
+    "edge_count": 55000,
+    "polygon_count": 27500,
+    "has_armature_modifier": true,
+    "target_armature_name": "CharacterArmature",
+    "transform": {
+      "location": [0.0, 0.0, 0.0],
+      "rotation_euler": [0.0, 0.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    "vertex_groups": ["Root", "Spine", "Chest", "Head"],
+    "weights_summary": {
+      "unweighted_vertex_count": 0,
+      "max_weights_per_vertex": 4,
+      "exceeds_godot_max_weights": false
+    },
+    "materials_count": 2
+  },
+  "armature": {
+    "name": "CharacterArmature",
+    "total_bones": 4,
+    "deform_bones_count": 4,
+    "root_bone_names": ["Root"],
+    "transform": {
+      "location": [0.0, 0.0, 0.0],
+      "rotation_euler": [0.0, 0.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    "bones": {
+      "Root": {
+        "name": "Root",
+        "parent_name": null,
+        "children_names": ["Spine"],
+        "head": [0.0, 0.0, 0.0],
+        "tail": [0.0, 0.0, 1.0],
+        "length": 1.0,
+        "connected": false,
+        "use_deform": true
+      },
+      "Spine": {
+        "name": "Spine",
+        "parent_name": "Root",
+        "children_names": ["Chest"],
+        "head": [0.0, 0.0, 1.0],
+        "tail": [0.0, 0.0, 1.5],
+        "length": 0.5,
+        "connected": true,
+        "use_deform": true
+      },
+      "Chest": {
+        "name": "Chest",
+        "parent_name": "Spine",
+        "children_names": ["Head"],
+        "head": [0.0, 0.0, 1.5],
+        "tail": [0.0, 0.0, 1.8],
+        "length": 0.3,
+        "connected": true,
+        "use_deform": true
+      },
+      "Head": {
+        "name": "Head",
+        "parent_name": "Chest",
+        "children_names": [],
+        "head": [0.0, 0.0, 1.8],
+        "tail": [0.0, 0.0, 2.1],
+        "length": 0.3,
+        "connected": true,
+        "use_deform": true
+      }
+    }
+  }
+}

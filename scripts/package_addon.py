@@ -48,6 +48,33 @@ def package_blender_addon() -> Path:
             raise FileNotFoundError(f"Required addon file missing: {src_file}")
         files_to_pack.append((src_file, Path("rigmate") / fname))
 
+    # Neutral contracts package (pure Python standard library)
+    contracts_dir = src_dir / "contracts"
+    contracts_files = ["__init__.py", "dto.py", "host.py", "hashing.py"]
+    for fname in contracts_files:
+        src_file = contracts_dir / fname
+        if not src_file.is_file():
+            raise FileNotFoundError(f"Required contracts file missing: {src_file}")
+        files_to_pack.append((src_file, Path("rigmate") / "contracts" / fname))
+
+    # Neutral deterministic analysis package (pure Python standard library)
+    analysis_dir = src_dir / "analysis"
+    analysis_files = ["__init__.py", "rig.py"]
+    for fname in analysis_files:
+        src_file = analysis_dir / fname
+        if not src_file.is_file():
+            raise FileNotFoundError(f"Required analysis file missing: {src_file}")
+        files_to_pack.append((src_file, Path("rigmate") / "analysis" / fname))
+
+    # Neutral localization package (pure Python standard library)
+    localization_dir = src_dir / "localization"
+    localization_files = ["__init__.py", "engine.py"]
+    for fname in localization_files:
+        src_file = localization_dir / fname
+        if not src_file.is_file():
+            raise FileNotFoundError(f"Required localization file missing: {src_file}")
+        files_to_pack.append((src_file, Path("rigmate") / "localization" / fname))
+
     # Write ZIP
     with zipfile.ZipFile(zip_output_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for src_file, arc_name in files_to_pack:
@@ -79,6 +106,14 @@ def validate_addon_zip(zip_path: Path):
             "rigmate/dto.py",
             "rigmate/i18n.py",
             "rigmate/analyzer.py",
+            "rigmate/contracts/__init__.py",
+            "rigmate/contracts/dto.py",
+            "rigmate/contracts/host.py",
+            "rigmate/contracts/hashing.py",
+            "rigmate/analysis/__init__.py",
+            "rigmate/analysis/rig.py",
+            "rigmate/localization/__init__.py",
+            "rigmate/localization/engine.py",
         ]
 
         for req in required_files:

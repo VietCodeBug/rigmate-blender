@@ -102,3 +102,81 @@ RigMate enforces a strictly verifiable, crash-recoverable execution lifecycle fo
 3. **Idempotency & ACK-Loss Protection**: Operations are tracked in `.rigmate/idempotency/` via canonical SHA-256 request hashes. If network drops after host mutation, `query_status()` discovers the executed mutation and prevents duplicate re-apply.
 4. **Verified Outcome**: `completed` strictly requires host postcondition verification (`verified_at` and `host_revision_after`).
 5. **Non-Destructive Recovery**: Restoring from a checkpoint materializes files to `<name>.recovered.<timestamp>.<ext>`, verifying restored hashes against the manifest without destructively overwriting live files.
+
+---
+
+## 4. Neutral Contracts & Headless Host Control Plane
+
+RigMate enforces strict architectural isolation between the host runtime (Blender add-on or Godot) and the external Core execution lifecycle.
+
+### Dependency Direction
+
+```text
+                     rigmate.contracts
+                 (Pure Python Standard Library)
+                 - dto.py
+                 - host.py
+                 - hashing.py
+                        ^
+                        |
+          +-------------+-------------+
+          |                           |
+     blender_addon                   core
+     (bpy adapter)              (Jobs / Lifecycle)
+          |                           |
+          +-------------+-------------+
+                        |
+             rigmate.analysis / rigmate.localization
+                 (Pure Python Standard Library)
+```
+
+**Architectural Invariants:**
+- `rigmate.contracts`, `rigmate.analysis`, and `rigmate.localization` are **100% pure Python standard library** (zero imports of `pydantic`, `fastapi`, `mcp`, `httpx`, `bpy`, `mathutils`, `storage`, `core`, or `blender_addon`).
+- **Core imports Blender Addon:** `NO`. Core strictly imports neutral contracts, analysis, and localization.
+- **Blender imports Core:** `NO`. Blender add-on runs self-contained with neutral packages.
+- **HostAdapter protocol requires Pydantic:** `NO`. Protocol methods accept `HostOperationRequest`, a pure standard library dataclass.
+- **Core adapter boundary:** `host_request_from_operation(op: OperationEnvelope) -> HostOperationRequest` translates Core Pydantic envelopes to neutral transport requests at the Core dispatch boundary.
+
+### Host Operation Status & Recovery Semantics
+
+`HostAdapter.query_operation_status(operation_id, idempotency_key)` returns a structured `HostOperationStatus`:
+
+| State | Durable Evidence Requirement | Core Recovery Action | Redispatch Allowed? |
+| :--- | :--- | :--- | :--- |
+| **`ACCEPTED`** | Host durably logged identity; execution not proven | Preserve in-progress state; do NOT re-apply | `NO` |
+| **`EXECUTING`** | Host actively executing operation | Preserve in-progress state; await completion | `NO` |
+| **`EXECUTED`** | Durable host registry proves execution; apply evidence attached | Advance to `verifying`; verify postconditions; complete if valid | `NO` (already run) |
+| **`FAILED`** | Host durably records execution failure | Do not assume zero side-effects; transition to safe failure/recovery | `NO` |
+| **`NOT_FOUND`** | Registry authoritatively queried and proves operation never accepted | Validate invariants (same op/idempotency/hash/revision/checkpoint); redispatch SAME operation | **`YES` (ONLY state)** |
+| **`UNKNOWN`** | Host reachable but cannot prove execution state | Transition to `RECOVERY_REQUIRED`; do NOT re-apply | `NO` |
+| **`UNAVAILABLE`** | Transport timeout or host communication failure | Transition to `RECOVERY_REQUIRED` / retry probe; NEVER re-apply | `NO` |
+
+### Authoritative NOT_FOUND & Crash-Before-Host-Call Invariant
+
+If Core crashes after persisting `APPLYING` but before the host receives or accepts the operation:
+1. Upon restart, Core reconciliation queries `query_operation_status()`.
+2. The host registry is authoritatively searched and returns `NOT_FOUND` (proving zero mutations occurred).
+3. Core re-validates:
+   - Persisted `operation_id` matches.
+   - Persisted `idempotency_key` matches.
+   - Canonical request hash matches.
+   - Prepared plan and checkpoint manifest remain verified.
+   - Document writer lock is re-acquired.
+   - Current host document revision equals `expected_revision`.
+4. If all invariants hold, Core safely redispatches the **SAME** operation identity once.
+5. If the host revision changed in the interim, Core transitions to `TARGET_STALE` with zero side effects.
+
+### Separation of Apply vs. Verification
+A host returning from `apply_operation` yields a `HostApplyResult` (confirming mutation execution). This is strictly distinct from verified completion:
+- **`HOST EXECUTED` != `VERIFIED` != `JOB COMPLETED`**
+- `OperationReceipt.status` strictly uses `ReceiptStatus`.
+- `JobRecord.status` strictly uses `JobStatus`.
+- Final `OperationReceipt` with `status=completed` is only created after `verify_operation` passes postcondition verification (`verified_at` and `host_revision_after`).
+
+### Verification Distinction: Object Reconstruction vs. True Process Restart
+
+RigMate distinguishes two levels of recovery verification:
+1. **Fresh Object Reconstruction**: Proves destruction of RAM objects (`del core; del host`) and reconstitution from disk within the same Python interpreter.
+2. **Real Python Process Restart**: Proves separate OS child processes (`sys.executable` via `subprocess`) where Phase A crashes (`os._exit(42)`) and Phase B recovers in a distinct PID (`phase_a_pid != phase_b_pid`), verifying zero shared memory, zero module-level cache, and strictly 1 host mutation.
+
+

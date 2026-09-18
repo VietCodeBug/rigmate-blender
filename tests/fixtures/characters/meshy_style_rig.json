@@ -1,0 +1,75 @@
+{
+  "mesh": {
+    "name": "MeshyCharacterMesh",
+    "vertex_count": 35000,
+    "edge_count": 70000,
+    "polygon_count": 35000,
+    "has_armature_modifier": true,
+    "target_armature_name": "MeshyArmature",
+    "transform": {
+      "location": [0.0, 0.0, 0.0],
+      "rotation_euler": [0.0, 0.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    "vertex_groups": ["Root", "LeftHand", "RightHand"],
+    "weights_summary": {
+      "unweighted_vertex_count": 0,
+      "max_weights_per_vertex": 4,
+      "exceeds_godot_max_weights": false
+    },
+    "materials_count": 1
+  },
+  "armature": {
+    "name": "MeshyArmature",
+    "total_bones": 12,
+    "deform_bones_count": 12,
+    "root_bone_names": ["Root"],
+    "transform": {
+      "location": [0.0, 0.0, 0.0],
+      "rotation_euler": [0.0, 0.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    "bones": {
+      "Root": {
+        "name": "Root",
+        "parent_name": null,
+        "children_names": ["LeftHand", "RightHand"],
+        "head": [0.0, 0.0, 0.0],
+        "tail": [0.0, 0.0, 1.0],
+        "length": 1.0,
+        "connected": false,
+        "use_deform": true
+      },
+      "LeftHand": {
+        "name": "LeftHand",
+        "parent_name": "Root",
+        "children_names": ["thumb_l", "index_l", "middle_l", "ring_l", "pinky_l"],
+        "head": [0.5, 0.0, 1.0],
+        "tail": [0.6, 0.0, 1.0],
+        "length": 0.1,
+        "connected": false,
+        "use_deform": true
+      },
+      "thumb_l": { "name": "thumb_l", "parent_name": "LeftHand", "children_names": [] },
+      "index_l": { "name": "index_l", "parent_name": "LeftHand", "children_names": [] },
+      "middle_l": { "name": "middle_l", "parent_name": "LeftHand", "children_names": [] },
+      "ring_l": { "name": "ring_l", "parent_name": "LeftHand", "children_names": [] },
+      "pinky_l": { "name": "pinky_l", "parent_name": "LeftHand", "children_names": [] },
+      "RightHand": {
+        "name": "RightHand",
+        "parent_name": "Root",
+        "children_names": ["thumb_r", "index_r", "middle_r", "ring_r", "pinky_r"],
+        "head": [-0.5, 0.0, 1.0],
+        "tail": [-0.6, 0.0, 1.0],
+        "length": 0.1,
+        "connected": false,
+        "use_deform": true
+      },
+      "thumb_r": { "name": "thumb_r", "parent_name": "RightHand", "children_names": [] },
+      "index_r": { "name": "index_r", "parent_name": "RightHand", "children_names": [] },
+      "middle_r": { "name": "middle_r", "parent_name": "RightHand", "children_names": [] },
+      "ring_r": { "name": "ring_r", "parent_name": "RightHand", "children_names": [] },
+      "pinky_r": { "name": "pinky_r", "parent_name": "RightHand", "children_names": [] }
+    }
+  }
+}

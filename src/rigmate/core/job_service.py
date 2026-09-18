@@ -17,6 +17,14 @@ from rigmate.core.checkpoints import CheckpointManifest
 from rigmate.core.errors import RigMateError, RigMateErrorCode
 from rigmate.core.events import RigMateEvent
 from rigmate.core.executors import OperationExecutor
+from rigmate.core.host_protocol import (
+    HostAdapter,
+    HostApplyResult,
+    HostOperationRequest,
+    HostStatusEnum,
+    InspectionRequest,
+    host_request_from_operation,
+)
 from rigmate.core.ids import new_event_id, new_job_id, new_correlation_id, new_checkpoint_id
 from rigmate.core.jobs import (
     JobRecord,
@@ -45,13 +53,14 @@ class JobService:
         self,
         storage_root: Union[str, Path],
         project_root: Union[str, Path],
-        executor: OperationExecutor,
+        executor: Union[HostAdapter, OperationExecutor],
         fault_hook: Optional[Callable[[str, Any], None]] = None,
     ):
         self.storage_root = Path(storage_root).resolve()
         self.project_root = Path(project_root).resolve()
         self.executor = executor
         self.fault_hook = fault_hook  # Test fault injection hook (hook_name, context)
+
 
         self.store = JobStore(self.storage_root)
         self.checkpoint_engine = CheckpointEngine(self.storage_root)
@@ -265,7 +274,16 @@ class JobService:
                 )
 
             # Pre-flight host check
-            self.executor.prepare(operation)
+            if isinstance(self.executor, HostAdapter):
+                host_op = host_request_from_operation(operation)
+                prep = self.executor.prepare_operation(host_op)
+                if not prep.can_apply:
+                    raise RigMateError(
+                        prep.rejection_reason or "Host prepare_operation rejected",
+                        code=RigMateErrorCode.VALIDATION_FAILED,
+                    )
+            else:
+                self.executor.prepare(operation)
 
             # Check checkpoint requirement
             if operation.mode == OperationMode.APPLY and operation.tool != "checkpoint.create":
@@ -293,6 +311,95 @@ class JobService:
             self._trigger_fault("after_apply_started_before_executor", operation)
 
             # Execute on host
+            if isinstance(self.executor, HostAdapter):
+                host_op = host_request_from_operation(operation)
+                apply_res: Optional[HostApplyResult] = None
+                try:
+                    apply_res = self.executor.apply_operation(host_op)
+                except Exception as e:
+                    self._emit_event(
+                        job,
+                        "operation.apply_interrupted",
+                        {"error": str(e)},
+                    )
+                    host_status = self.executor.query_operation_status(
+                        operation.operation_id, operation.idempotency_key
+                    )
+                    if host_status.state == HostStatusEnum.EXECUTED and host_status.apply_result:
+                        apply_res = host_status.apply_result
+                    else:
+                        state_val = host_status.state.value if hasattr(host_status.state, "value") else str(host_status.state)
+                        self._transition_job(
+                            job,
+                            JobStatus.RECOVERY_REQUIRED,
+                            "job.recovery_required",
+                            {"reason": f"Apply failed or dropped with host status '{state_val}'"},
+                            error=ReceiptError(
+                                code=RigMateErrorCode.RESULT_UNVERIFIED,
+                                message=f"Apply error with uncertain host mutation state ({state_val}): {e}",
+                            ),
+                        )
+                        return job
+
+                # Transition to verifying
+                self._transition_job(
+                    job,
+                    JobStatus.VERIFYING,
+                    "job.verify_started",
+                    {"operation_id": operation.operation_id},
+                )
+
+                # Verify postconditions on host
+                ver_res = self.executor.verify_operation(host_op, apply_res)
+                if ver_res.verified:
+                    receipt = OperationReceipt(
+                        operation_id=operation.operation_id,
+                        status=ReceiptStatus.COMPLETED,
+                        host_revision_before=apply_res.host_revision_before,
+                        host_revision_after=apply_res.host_revision_after,
+                        facts=apply_res.facts,
+                        changes=apply_res.changes,
+                        verified_at=to_utc_iso(),
+                    )
+                    self.store.save_receipt(job.job_id, receipt)
+                    self.idempotency.register(operation, receipt=receipt)
+                    self._emit_event(
+                        job,
+                        "operation.receipt_recorded",
+                        {"operation_id": operation.operation_id, "status": receipt.status.value},
+                    )
+                    self._emit_event(
+                        job,
+                        "job.verify_succeeded",
+                        {"operation_id": operation.operation_id},
+                    )
+                    self._transition_job(
+                        job,
+                        JobStatus.COMPLETED,
+                        "job.completed",
+                        {"operation_id": operation.operation_id},
+                        terminal_reason="Operation applied and verified successfully",
+                    )
+                    return job
+                else:
+                    self._emit_event(
+                        job,
+                        "job.verify_failed",
+                        {"operation_id": operation.operation_id},
+                    )
+                    self._transition_job(
+                        job,
+                        JobStatus.RECOVERY_REQUIRED,
+                        "job.recovery_required",
+                        {"operation_id": operation.operation_id},
+                        error=ReceiptError(
+                            code=RigMateErrorCode.RESULT_UNVERIFIED,
+                            message=ver_res.reason or "Operation postcondition verification failed",
+                        ),
+                    )
+                    return job
+
+            # Legacy OperationExecutor execution
             receipt: Optional[OperationReceipt] = None
             try:
                 receipt = self.executor.apply(operation)
@@ -350,6 +457,7 @@ class JobService:
         finally:
             doc_lock.release(job.job_id)
 
+
     def verify_job(
         self,
         job_id: str,
@@ -395,6 +503,239 @@ class JobService:
             )
 
         return job
+
+    def resume_job(self, job_id: str) -> JobRecord:
+        """
+        Actionable resume API executing recovery recommendations without blindly re-running apply.
+        - If applying/cancel_requested with receipt: transitions to verifying -> verify.
+        - If applying/cancel_requested without receipt: queries host status -> if host applied -> transitions to verifying -> verify; if unknown -> transitions to recovery_required.
+        - If verifying: resumes verification directly.
+        - If prepared: returns job (safe to apply or cancel).
+        """
+        job = self.get_job(job_id)
+        if is_terminal_status(job.status):
+            return job
+
+        op_id = job.current_operation_id
+        op = self.store.load_operation(job.job_id, op_id) if op_id else None
+
+        if job.status in {JobStatus.APPLYING, JobStatus.CANCEL_REQUESTED}:
+            receipt = self.store.load_receipt(job.job_id, op_id) if op_id else None
+            if receipt:
+                if op:
+                    self._transition_job(job, JobStatus.VERIFYING, "job.verify_started", {"operation_id": op_id})
+                    return self.verify_job(job.job_id, op, receipt)
+                return job
+
+            # Query host status
+            if op:
+                if isinstance(self.executor, HostAdapter):
+                    status = self.executor.query_operation_status(op.operation_id, op.idempotency_key)
+                    if status.state == HostStatusEnum.EXECUTED and status.apply_result:
+                        apply_res = status.apply_result
+                        self._transition_job(job, JobStatus.VERIFYING, "job.verify_started", {"operation_id": op.operation_id})
+                        host_op = host_request_from_operation(op)
+                        ver_res = self.executor.verify_operation(host_op, apply_res)
+                        if ver_res.verified:
+                            receipt = OperationReceipt(
+                                operation_id=op.operation_id,
+                                status=ReceiptStatus.COMPLETED,
+                                host_revision_before=apply_res.host_revision_before,
+                                host_revision_after=apply_res.host_revision_after,
+                                facts=apply_res.facts,
+                                changes=apply_res.changes,
+                                verified_at=to_utc_iso(),
+                            )
+                            self.store.save_receipt(job.job_id, receipt)
+                            self.idempotency.register(op, receipt=receipt)
+                            self._emit_event(job, "operation.receipt_recorded", {"operation_id": op.operation_id, "status": receipt.status.value})
+                            self._emit_event(job, "job.verify_succeeded", {"operation_id": op.operation_id})
+                            self._transition_job(
+                                job,
+                                JobStatus.COMPLETED,
+                                "job.completed",
+                                {"operation_id": op.operation_id},
+                                terminal_reason="Operation applied and verified successfully",
+                            )
+                            return job
+                        else:
+                            self._emit_event(job, "job.verify_failed", {"operation_id": op.operation_id})
+                            self._transition_job(
+                                job,
+                                JobStatus.RECOVERY_REQUIRED,
+                                "job.recovery_required",
+                                {"operation_id": op.operation_id},
+                                error=ReceiptError(
+                                    code=RigMateErrorCode.RESULT_UNVERIFIED,
+                                    message=ver_res.reason or "Postcondition verification failed",
+                                ),
+                            )
+                            return job
+                    elif status.state == HostStatusEnum.NOT_FOUND:
+                        # Authoritative proof: operation was never received or started on host.
+                        # Revalidate all redispatch preconditions:
+                        if op.project_id != job.project_id or op.document_id != job.document_id:
+                            self._transition_job(
+                                job,
+                                JobStatus.RECOVERY_REQUIRED,
+                                "job.recovery_required",
+                                {"operation_id": op.operation_id},
+                                error=ReceiptError(code=RigMateErrorCode.JOB_BINDING_MISMATCH, message="Identity mismatch on NOT_FOUND redispatch"),
+                            )
+                            return job
+
+                        if op.mode == OperationMode.APPLY and op.tool != "checkpoint.create":
+                            if not job.checkpoint_ref:
+                                self._transition_job(
+                                    job,
+                                    JobStatus.RECOVERY_REQUIRED,
+                                    "job.recovery_required",
+                                    {"operation_id": op.operation_id},
+                                    error=ReceiptError(code=RigMateErrorCode.CHECKPOINT_REQUIRED, message="Apply redispatch requires checkpoint"),
+                                )
+                                return job
+                            cp = self.checkpoint_engine.load_manifest(job.checkpoint_ref)
+                            if not cp or not cp.complete or not cp.verified_at:
+                                self._transition_job(
+                                    job,
+                                    JobStatus.RECOVERY_REQUIRED,
+                                    "job.recovery_required",
+                                    {"operation_id": op.operation_id},
+                                    error=ReceiptError(code=RigMateErrorCode.CHECKPOINT_CORRUPT, message="Checkpoint unverified for redispatch"),
+                                )
+                                return job
+
+                        # Reacquire writer lock
+                        doc_lock = DocumentLock(
+                            lock_dir=self.lock_dir,
+                            project_id=job.project_id,
+                            host_instance_id=job.host_instance_id,
+                            document_id=job.document_id,
+                        )
+                        doc_lock.acquire(job.job_id)
+                        try:
+                            # Verify current host document revision
+                            insp_req = InspectionRequest(project_id=job.project_id, document_id=job.document_id)
+                            insp_res = self.executor.inspect_document(insp_req)
+                            if insp_res.document.revision != op.expected_revision:
+                                self._transition_job(
+                                    job,
+                                    JobStatus.RECOVERY_REQUIRED,
+                                    "job.recovery_required",
+                                    {"operation_id": op.operation_id},
+                                    error=ReceiptError(
+                                        code=RigMateErrorCode.TARGET_STALE,
+                                        message=f"Host revision '{insp_res.document.revision}' does not match expected '{op.expected_revision}'",
+                                    ),
+                                )
+                                return job
+
+                            # Safe redispatch with SAME operation identity
+                            host_op = host_request_from_operation(op)
+                            apply_res = self.executor.apply_operation(host_op)
+
+                            self._transition_job(job, JobStatus.VERIFYING, "job.verify_started", {"operation_id": op.operation_id})
+                            ver_res = self.executor.verify_operation(host_op, apply_res)
+                            if ver_res.verified:
+                                receipt = OperationReceipt(
+                                    operation_id=op.operation_id,
+                                    status=ReceiptStatus.COMPLETED,
+                                    host_revision_before=apply_res.host_revision_before,
+                                    host_revision_after=apply_res.host_revision_after,
+                                    facts=apply_res.facts,
+                                    changes=apply_res.changes,
+                                    verified_at=to_utc_iso(),
+                                )
+                                self.store.save_receipt(job.job_id, receipt)
+                                self.idempotency.register(op, receipt=receipt)
+                                self._emit_event(job, "operation.receipt_recorded", {"operation_id": op.operation_id, "status": receipt.status.value})
+                                self._emit_event(job, "job.verify_succeeded", {"operation_id": op.operation_id})
+                                self._transition_job(
+                                    job,
+                                    JobStatus.COMPLETED,
+                                    "job.completed",
+                                    {"operation_id": op.operation_id},
+                                    terminal_reason="Operation applied and verified successfully after safe NOT_FOUND redispatch",
+                                )
+                                return job
+                            else:
+                                self._emit_event(job, "job.verify_failed", {"operation_id": op.operation_id})
+                                self._transition_job(
+                                    job,
+                                    JobStatus.RECOVERY_REQUIRED,
+                                    "job.recovery_required",
+                                    {"operation_id": op.operation_id},
+                                    error=ReceiptError(
+                                        code=RigMateErrorCode.RESULT_UNVERIFIED,
+                                        message=ver_res.reason or "Postcondition verification failed after redispatch",
+                                    ),
+                                )
+                                return job
+                        finally:
+                            doc_lock.release(job.job_id)
+
+                    elif status.state in {HostStatusEnum.UNKNOWN, HostStatusEnum.UNAVAILABLE}:
+                        self._transition_job(
+                            job,
+                            JobStatus.RECOVERY_REQUIRED,
+                            "job.recovery_required",
+                            {"operation_id": op.operation_id},
+                            error=ReceiptError(
+                                code=RigMateErrorCode.RESULT_UNVERIFIED,
+                                message=f"Host status is {status.state.value}; recovery required without redispatch",
+                            ),
+                        )
+                        return job
+                    elif status.state in {HostStatusEnum.ACCEPTED, HostStatusEnum.EXECUTING}:
+                        self._transition_job(
+                            job,
+                            JobStatus.RECOVERY_REQUIRED,
+                            "job.recovery_required",
+                            {"operation_id": op.operation_id},
+                            error=ReceiptError(
+                                code=RigMateErrorCode.RESULT_UNVERIFIED,
+                                message=f"Host status is {status.state.value} (in-progress); awaiting completion",
+                            ),
+                        )
+                        return job
+                    elif status.state == HostStatusEnum.FAILED:
+                        self._transition_job(
+                            job,
+                            JobStatus.RECOVERY_REQUIRED,
+                            "job.recovery_required",
+                            {"operation_id": op.operation_id},
+                            error=ReceiptError(
+                                code=RigMateErrorCode.RESULT_UNVERIFIED,
+                                message="Host durably recorded operation failure",
+                            ),
+                        )
+                        return job
+                elif hasattr(self.executor, "query_status"):
+                    host_receipt = self.executor.query_status(op.operation_id, op.idempotency_key)
+                    if host_receipt:
+                        self.store.save_receipt(job.job_id, host_receipt)
+                        self._transition_job(job, JobStatus.VERIFYING, "job.verify_started", {"operation_id": op.operation_id})
+                        return self.verify_job(job.job_id, op, host_receipt)
+                    else:
+                        self._transition_job(
+                            job,
+                            JobStatus.RECOVERY_REQUIRED,
+                            "job.recovery_required",
+                            {"operation_id": op.operation_id},
+                            error=ReceiptError(
+                                code=RigMateErrorCode.RESULT_UNVERIFIED,
+                                message="Host status unknown after crash; recovery required",
+                            ),
+                        )
+                        return job
+
+        if job.status == JobStatus.VERIFYING:
+            receipt = self.store.load_receipt(job.job_id, op_id) if op_id else None
+            if op and receipt:
+                return self.verify_job(job.job_id, op, receipt)
+
+        return job
+
 
     def request_cancel(self, job_id: str, reason: str = "user requested") -> JobRecord:
         """

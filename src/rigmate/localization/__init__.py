@@ -1,7 +1,7 @@
-"""Compatibility shim for Blender add-on localization (i18n).
+"""RigMate neutral localization package.
 
-Canonical implementation now lives in `rigmate.localization.engine` (pure Python standard library).
-Re-exported here for backwards compatibility within the Blender add-on package.
+Pure Python standard library i18n and translation engine.
+Zero external dependencies.
 """
 
 from rigmate.localization.engine import (

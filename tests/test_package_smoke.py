@@ -135,6 +135,24 @@ def test_packaged_addon_import_resolution():
             mod_analyzer = importlib.import_module("rigmate.analyzer")
             assert hasattr(mod_analyzer, "RigAnalyzer")
 
+            # Verify packaged neutral contracts, analysis, and localization modules
+            mod_contracts = importlib.import_module("rigmate.contracts")
+            mod_contracts_dto = importlib.import_module("rigmate.contracts.dto")
+            assert hasattr(mod_contracts_dto, "MeshInfo")
+            mod_contracts_host = importlib.import_module("rigmate.contracts.host")
+            assert hasattr(mod_contracts_host, "HostAdapter")
+            assert hasattr(mod_contracts_host, "HostOperationStatus")
+            mod_contracts_hashing = importlib.import_module("rigmate.contracts.hashing")
+            assert hasattr(mod_contracts_hashing, "compute_operation_request_hash")
+
+            mod_analysis = importlib.import_module("rigmate.analysis")
+            mod_analysis_rig = importlib.import_module("rigmate.analysis.rig")
+            assert hasattr(mod_analysis_rig, "RigAnalyzer")
+
+            mod_localization = importlib.import_module("rigmate.localization")
+            mod_localization_engine = importlib.import_module("rigmate.localization.engine")
+            assert hasattr(mod_localization_engine, "t")
+
             # 6. Verify that heavy server and core lifecycle modules are NOT in packaged ZIP
             for excluded in [
                 "rigmate.core.jobs",

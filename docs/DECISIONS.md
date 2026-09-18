@@ -170,6 +170,54 @@ This document tracks key architectural decisions, rationale, and technical trade
     ```
 - **Consequences**: Backward and forward compatibility across `mcp 1.x` and `mcp 2.x` environments without breaking server initialization.
 
+---
+
+## ADR-15: Headless Host Control Plane, Neutral HostAdapter Protocol, and Durable Fake Host
+- **Context**: RigMate execution control plane testing must be completely decoupled from Blender binary availability. Running real Blender tests on machines without Blender is impossible and would block continuous integration. At the same time, naive in-memory mocks fail to prove crash recovery, persistence, or ACK-loss guarantees.
+- **Decision**:
+  - Define a transport-neutral host control plane (`src/rigmate/core/host_protocol.py`) with zero `bpy`, `fastapi`, or `mcp` imports.
+  - Model clear boundaries: `HostIdentity`, `DocumentIdentity`, `InspectionRequest`, `InspectionResult`, `PreparedHostOperation`, `HostApplyResult`, and `HostVerificationResult`.
+  - Enforce explicit distinction between immediate mutation execution (`HostApplyResult`) and verified completion (`OperationReceipt`). A host apply return does not equate to job completion.
+  - Implement a filesystem-backed `DurableFakeHost` (`src/rigmate/testing/durable_host.py`) persisting documents, revisions, mutation counts, operations, and idempotency records to disk.
+  - Prove that destroying both `JobService` and `DurableFakeHost` in RAM and restoring from disk recovers operation status, prevents duplicate mutation, and keeps the mutation count strictly at 1.
+- **Consequences**: Complete headless proof of the entire closed-loop control plane. Real Blender work is cleanly constrained to implementing `RealBlenderHostAdapter` on the target Blender machine.
+
+---
+
+## ADR-16: Neutral Pure-Stdlib Contracts Layer & Inverted Dependencies
+- **Context**: In earlier versions, `core/dto.py`, `core/analyzer.py`, and `core/i18n.py` imported from `rigmate.blender_addon.*`. This inverted architectural boundaries: Core depended on Blender-specific code, and `HostAdapter` depended on Pydantic `OperationEnvelope`, making it impossible for a vanilla Blender runtime to import contracts cleanly.
+- **Decision**:
+  - Establish `src/rigmate/contracts/` (`dto.py`, `host.py`, `hashing.py`) as a pure Python standard library package (dataclasses, typing, hashlib, json).
+  - Relocate deterministic rig diagnosis to `src/rigmate/analysis/rig.py` and localization to `src/rigmate/localization/engine.py`.
+  - Invert dependencies: Core and Blender Add-on both depend inward on `rigmate.contracts`, `rigmate.analysis`, and `rigmate.localization`.
+  - Zero non-Blender runtime modules may import `rigmate.blender_addon`.
+  - Define `HostOperationRequest` as a pure stdlib dataclass for the host protocol; provide `host_request_from_operation(op)` at the Core adapter boundary to convert Core Pydantic `OperationEnvelope` instances.
+- **Consequences**: Pure standard library boundary; zero Pydantic requirement on the host runtime; Core is strictly decoupled from Blender.
+
+---
+
+## ADR-17: Authoritative Host Operation Status & Crash-Before-Apply Redispatch Invariants
+- **Context**: Previously, `query_operation_status()` returned `Optional[HostApplyResult]`, collapsing `NOT_FOUND`, `UNKNOWN`, and `UNAVAILABLE` into `None`. In crash-before-apply scenarios, Core could not distinguish whether an operation was never received or whether the query simply timed out.
+- **Decision**:
+  - Introduce explicit `HostOperationStatus` enum (`ACCEPTED`, `EXECUTING`, `EXECUTED`, `FAILED`, `NOT_FOUND`, `UNKNOWN`, `UNAVAILABLE`).
+  - Reserve `NOT_FOUND` strictly for authoritative proof that the host registry was searched and contains no record of the operation.
+  - Require that `UNKNOWN` and `UNAVAILABLE` never trigger re-apply, leading instead to `RECOVERY_REQUIRED`.
+  - Permit safe redispatch on `NOT_FOUND` only after re-validating the exact same `operation_id`, `idempotency_key`, request hash, verified plan/checkpoint, re-acquired writer lock, and current document revision.
+- **Consequences**: Deterministic crash-before-apply recovery without risk of duplicate mutations or silent side-effects.
+
+---
+
+## ADR-18: Multi-Process OS Subprocess ACK-Loss Verification
+- **Context**: Testing crash recovery by destroying and recreating objects (`del core; del host`) within the same Python process proves memory reconstruction from disk, but fails to prove true OS process restart resilience (e.g. absence of shared interpreter state, static class variables, or module caches).
+- **Decision**:
+  - Implement automated multi-process tests (`tests/test_process_restart_subprocess.py` and `tests/helpers/process_restart_worker.py`) using `sys.executable` and `subprocess`.
+  - Execute Phase A in an independent child process that mutates the durable host and crashes via `os._exit(42)` before Core persists the receipt.
+  - Execute Phase B in a completely separate child process (`phase_a_pid != phase_b_pid`) that recovers state from disk, detects `EXECUTED` status, skips apply, verifies postconditions, and completes the job.
+  - Assert that `phase_b_apply_calls == 0` and total host mutations remain strictly 1.
+- **Consequences**: Irrefutable proof of true OS process restart safety across real process lifecycles.
+
+
+
 
 
 

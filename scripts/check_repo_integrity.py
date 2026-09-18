@@ -32,6 +32,14 @@ REQUIRED_TRACKED_FILES = [
     "src/rigmate/core/recovery.py",
     "src/rigmate/core/timeline.py",
     "src/rigmate/core/job_service.py",
+    "src/rigmate/contracts/__init__.py",
+    "src/rigmate/contracts/dto.py",
+    "src/rigmate/contracts/host.py",
+    "src/rigmate/contracts/hashing.py",
+    "src/rigmate/analysis/__init__.py",
+    "src/rigmate/analysis/rig.py",
+    "src/rigmate/localization/__init__.py",
+    "src/rigmate/localization/engine.py",
 ]
 
 

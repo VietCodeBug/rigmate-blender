@@ -1,0 +1,19 @@
+{
+  "mesh": {
+    "name": "HunyuanCharacterMesh",
+    "vertex_count": 48500,
+    "edge_count": 96000,
+    "polygon_count": 48000,
+    "has_armature_modifier": false,
+    "target_armature_name": null,
+    "transform": {
+      "location": [0.0, 0.0, 0.0],
+      "rotation_euler": [0.0, 0.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    "vertex_groups": [],
+    "weights_summary": null,
+    "materials_count": 1
+  },
+  "armature": null
+}
