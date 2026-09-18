@@ -88,6 +88,8 @@ D:\MCP_Blender\rigmate-blender\
 │   ├── test_architecture_boundary.py # AST dependency boundary & contract isolation tests
 │   └── test_process_restart_subprocess.py # Child process OS restart proofs
 └── docs/                       # Architectural records, technical guides, checklists
+    └── modules/
+        └── mesh_preparation.md # Canonical specification: Mesh Preparation ("Kiểm tra & sửa lưới")
 ```
 
 ---
@@ -130,9 +132,16 @@ python scripts/run_demo.py
 - **Durable Fake Host**: `VERIFIED` (filesystem-backed host state, independent persistence).
 - **Fresh Object Reconstruction**: `VERIFIED` (objects destroyed and recreated in RAM from disk).
 - **Real Python Process-Restart ACK-Loss**: `VERIFIED` (multi-process subprocess proof: Phase A crashes with exit 42, Phase B recovers in fresh PID, 0 duplicate apply calls, mutation count strictly 1).
+- **Mesh Preparation Spec**: `COMPLETE` (canonical spec at `docs/modules/mesh_preparation.md`).
+- **Headless Contract Design**: `COMPLETE` (structured tool envelopes, region references, finding schemas).
 - **Real Blender Host Adapter**: `UNVERIFIED` (implementation reserved for machine with physical Blender).
+- **Real Blender Mesh Inspection**: `UNVERIFIED` (BMesh algorithm specified; pending physical Blender test).
+- **Real Blender Mesh Repair**: `NOT IMPLEMENTED` (intentionally not implemented; reserved for Phase B).
+- **Real UV/Weight/Shape-Key Preservation**: `UNVERIFIED` (preservation matrix specified; pending physical Blender test).
 - **Real Blender Mutation**: `NOT PERFORMED` (intentionally not performed; machine has no physical Blender).
 - **Real Blender ACK-Loss**: `NOT PERFORMED` (reserved for real Blender runtime experiments).
+- **Real Godot Import Validation**: `NOT PERFORMED` (contextual budget advisory specified; pending real Godot verification).
+- **Auto Retopology Backend**: `NOT SELECTED / RESEARCH STATUS` (Phase E research).
 - **Real Godot Host**: `NOT PERFORMED` (future milestone).
 - **Pure Python Tests**: **166/166 tests PASSED**.
 
@@ -146,5 +155,17 @@ The following tasks genuinely require a physical Blender installation and should
 4. Connect real Blender host status persistence to a durable local state file before acknowledging IPC.
 5. Run the full closed-loop lifecycle (checkpoint -> apply -> verify) against a live Blender session.
 6. Conduct real ACK-loss and process crash experiments against Blender.
+
+---
+
+## 6. Next Immediate Implementation Slice (Phase A: Read-Only Mesh Inspection)
+The very next implementation task should be **strictly read-only** and can be developed and verified headlessly right now:
+1. **Contract DTOs**: Define `MeshStatistics`, `MeshRegionReference`, `MeshFinding`, and `MeshInspectionReport` in `src/rigmate/contracts/dto.py`.
+2. **Analysis Module**: Implement pure Python inspection rules in `src/rigmate/analysis/mesh.py` (poly/tri counts, loose geometry, near-duplicate threshold calculation, unweighted vertices, inverted normals).
+3. **Headless Fixture Tests**: Add unit tests in `tests/test_mesh_inspection.py` verifying detection against JSON character fixtures (`clean_static_mesh.json`, `non_manifold_region.json`, `unweighted_vertices.json`).
+4. **Tool Contract**: Add read-only `mesh.inspect` tool definition to MCP server.
+5. **Blender Extraction Stub**: Implement BMesh reader stub in `src/rigmate/blender_addon/bpy_inspectors.py`.
+*(Note: Do NOT implement geometry mutation or retopology algorithms until Phase A inspection is 100% verified).*
+
 
 

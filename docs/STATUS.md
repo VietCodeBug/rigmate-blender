@@ -23,9 +23,16 @@ This document provides a factual assessment of the current state of RigMate v0.1
 | **DURABLE FAKE HOST** | `VERIFIED` | Independent filesystem state directory, survives Python object destruction and process restart |
 | **FRESH OBJECT RECONSTRUCTION** | `VERIFIED` | Core A + Host A destroyed in RAM; Core B + Host B recover from disk, mutation count strictly 1 |
 | **REAL PYTHON PROCESS-RESTART ACK-LOSS** | `VERIFIED` | Multi-process subprocess proof (`phase_a_pid != phase_b_pid`, `os._exit(42)`, Phase B apply calls = 0, mutation count strictly 1) |
+| **MESH PREPARATION SPEC** | `COMPLETE` | Canonical spec at `docs/modules/mesh_preparation.md` (FR-070–FR-095, NFR-020–NFR-025, A1–A20) |
+| **HEADLESS CONTRACT DESIGN** | `COMPLETE` | Structured tool envelopes, region reference contracts, finding schemas, pure stdlib |
 | **REAL BLENDER HOST ADAPTER** | `UNVERIFIED` | Implementation reserved for machine with physical Blender runtime |
+| **REAL BLENDER MESH INSPECTION** | `UNVERIFIED` | BMesh extraction algorithm specified; pending physical Blender test |
+| **REAL BLENDER MESH REPAIR** | `NOT IMPLEMENTED` | Intentionally not implemented; reserved for Phase B implementation |
+| **REAL UV/WEIGHT/SHAPE-KEY PRESERVATION** | `UNVERIFIED` | Preservation matrix specified; pending physical Blender verification |
 | **REAL BLENDER MUTATION** | `NOT PERFORMED` | Intentionally not performed; machine has no physical Blender |
 | **REAL BLENDER ACK-LOSS** | `NOT PERFORMED` | Reserved for real Blender runtime experiments |
+| **REAL GODOT IMPORT VALIDATION** | `NOT PERFORMED` | Contextual budget advisory specified; pending real Godot verification |
+| **AUTO RETOPOLOGY BACKEND** | `NOT SELECTED / RESEARCH STATUS` | Broad auto-retopology classified as Phase E research |
 | **REAL GODOT HOST** | `NOT PERFORMED` | Future milestone |
 
 ---
@@ -88,4 +95,13 @@ This document provides a factual assessment of the current state of RigMate v0.1
   - Implemented resilient fallback import in `src/rigmate/mcp_server/server.py` supporting both `FastMCP` (mcp < 2.0) and `MCPServer` (mcp >= 2.0 / 2.2.0+).
 - **Resolved Issue 3: Blender Inspector Typing Import Error**
   - Resolved `NameError: name 'Dict' is not defined` in `src/rigmate/blender_addon/bpy_inspectors.py` by importing `Dict` from standard `typing`.
+
+---
+
+## 4. Mesh Preparation Specification Milestone (Completed)
+- **Canonical Specification Document**: Created `docs/modules/mesh_preparation.md` defining the complete architecture, UX, rules, tool contracts, risk register, and acceptance criteria for **Mesh Preparation ("Kiểm tra & sửa lưới")**.
+- **Requirement Allocation**: Formally allocated **FR-070 through FR-095** and **NFR-020 through NFR-025** continuing the RigMate Blueprint sequence.
+- **Traceability Matrix**: Established complete 1-to-1 mapping: Requirement -> User Story (US-1 to US-8) -> Tool Contract (`mesh.*`, `deformation.*`) -> Acceptance Criterion (A1 to A20).
+- **Core Invariants & ADR Integration**: Codified ADR-19 through ADR-23 covering neutral lifecycle integration, contextual severity, region invalidation (`REGION_STALE`), dirty document guards (`NEEDS_INPUT`), and 2D Godot pipeline independence.
+
 

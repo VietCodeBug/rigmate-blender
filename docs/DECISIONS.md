@@ -216,6 +216,63 @@ This document tracks key architectural decisions, rationale, and technical trade
   - Assert that `phase_b_apply_calls == 0` and total host mutations remain strictly 1.
 - **Consequences**: Irrefutable proof of true OS process restart safety across real process lifecycles.
 
+---
+
+## ADR-19: Mesh Preparation Architecture & Neutral Inspection/Repair Lifecycle
+- **Context**: Introducing mesh preparation, diagnosis, and repair must not create a second competing state machine, duplicate checkpoint store, or bypass the established Core lifecycle. Furthermore, Blender add-on environments cannot tolerate external dependencies.
+- **Decision**:
+  - Integrate Mesh Preparation directly into the existing RigMate architecture:
+    - Pure geometric diagnosis and severity heuristics reside in `rigmate.analysis`.
+    - Canonical DTOs and tool envelopes reside in `rigmate.contracts`.
+    - Host-side BMesh data extraction resides in `rigmate.blender_addon.bpy_inspectors`.
+    - Mutation operations (`mesh.apply_repair`) strictly route through Core `JobService` with plans, single-writer document locks, verified checkpoints, idempotency keys, and receipt verification.
+  - No mesh mutation may bypass the `HostAdapter` protocol or execute without pre-mutation snapshotting.
+- **Consequences**: Single execution lifecycle, consistent error handling, 100% headless CI testability for all analytical logic.
+
+---
+
+## ADR-20: Contextual Severity & Model-Relative Thresholds Over Uniform Quality Scores
+- **Context**: Many 3D tools present an arbitrary scalar "mesh health score" (e.g. 78/100) or enforce fixed millimetre merge thresholds. This misleads users: a triangular mesh is fine for a game prop but problematic for facial animation; an open boundary is intentional on an eyeball socket but fatal on a bending knee; a 0.001m merge threshold collapses fingers on small miniature models but ignores seams on giant environment assets.
+- **Decision**:
+  - Prohibit uniform scalar mesh health scores.
+  - Implement contextual severity (`INFO`, `REVIEW`, `BLOCKS_SELECTED_GOAL`) dictated by the user's explicit goal (`STATIC_OBJECT`, `ANIMATED_CHARACTER`, `HAND_FINGER_REPAIR`, `GODOT_EXPORT_PREPARATION`, `CUSTOM`).
+  - Calculate near-duplicate vertex thresholds relatively based on model scale and bounding-box diagonal ($\epsilon = 0.0005 \times \text{bbox\_diagonal}$) rather than static hardcoded numbers.
+- **Consequences**: Highly accurate, goal-relevant diagnostics with zero misleading scores.
+
+---
+
+## ADR-21: Region Reference Lifecycle & Stale Invalidation Policy
+- **Context**: When an inspection flags an issue in a localized region or the user selects a sub-mesh component, storing raw vertex or face indices becomes dangerous if subsequent operations alter mesh topology (e.g. vertex merges, face deletions, remeshing). Reusing stale indices under new topology corrupts unrelated surfaces.
+- **Decision**:
+  - Bind `MeshRegionReference` strictly to the document revision $N$ under which it was generated.
+  - Any topology-changing operation increments the document revision to $N+1$.
+  - Under revision $N+1$, any attempt to reuse index-dependent region selections from revision $N$ raises `REGION_STALE`.
+  - Re-evaluating a region after topology edits requires either re-running the inspection rule or projecting spatial bounding box anchors.
+- **Consequences**: Guaranteed index safety; zero accidental edits to wrong vertices after topological mutations.
+
+---
+
+## ADR-22: Dirty Blender Document Recovery Policy & Checkpoint Invariants
+- **Context**: Blender allows artists to work for hours with unsaved in-memory changes (`bpy.data.is_dirty == True`). An on-disk `.blend` file may reflect an older state. If RigMate creates a checkpoint by snapshotting the disk file while the live scene is dirty, rolling back to that checkpoint would silently erase the user's unsaved edits.
+- **Decision**:
+  - If a mutation job requires a durable filesystem checkpoint and the active Blender scene contains unsaved changes:
+    1. Core MUST NOT silently snapshot the stale on-disk `.blend` file.
+    2. The job transitions to `NEEDS_INPUT`.
+    3. The UI explicitly prompts the user: *"The active Blender scene has unsaved changes. Please save the file or authorize an explicit snapshot before applying mesh repairs."*
+  - Live in-memory snapshot techniques are marked `UNVERIFIED_RUNTIME` until physical Blender tests are performed.
+- **Consequences**: Eliminates silent data loss and preserves user trust.
+
+---
+
+## ADR-23: Separation of 3D Mesh Inspection from 2D Godot Engine Workflows
+- **Context**: RigMate aims to support both 3D Blender/Godot character workflows and 2D Godot game workflows (sprite animation, 2D bone deformation). Forcing 2D Godot users to install Blender or bundle 3D mesh modules introduces unnecessary bloat and friction.
+- **Decision**:
+  - The 3D Mesh Preparation module is an optional 3D capability.
+  - All 2D Godot companion features must remain 100% functional without Blender installed, without Blender running, and with mesh preparation modules disabled.
+  - Core packaging and CLI tools enforce strict isolation between 2D and 3D capabilities.
+- **Consequences**: Zero friction for 2D game developers; clean modular boundaries.
+
+
 
 
 

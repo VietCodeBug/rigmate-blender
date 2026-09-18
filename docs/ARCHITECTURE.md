@@ -179,4 +179,39 @@ RigMate distinguishes two levels of recovery verification:
 1. **Fresh Object Reconstruction**: Proves destruction of RAM objects (`del core; del host`) and reconstitution from disk within the same Python interpreter.
 2. **Real Python Process Restart**: Proves separate OS child processes (`sys.executable` via `subprocess`) where Phase A crashes (`os._exit(42)`) and Phase B recovers in a distinct PID (`phase_a_pid != phase_b_pid`), verifying zero shared memory, zero module-level cache, and strictly 1 host mutation.
 
+---
+
+## 5. Mesh Preparation Architecture ("Kiểm tra & sửa lưới")
+
+The **Mesh Preparation** module integrates directly into RigMate's closed-loop lifecycle without introducing competing state machines or parallel lifecycles.
+
+### Component Placement
+
+```text
+       [Blender Viewport / Context]
+                    |
+                    v
+    [bpy_inspectors.py (BpyInspector)]   <-- Reads live BMesh & scene state
+                    |
+                    v  (Standard DTOs: MeshInfo, SceneInfo)
+       [rigmate.contracts.dto]           <-- Pure stdlib data models
+                    |
+                    v
+         [rigmate.analysis]              <-- Deterministic pure Python rules & heuristics
+                    |                        (No bpy, No Pydantic, Runs headlessly)
+                    v  (Finding models, severity classification)
+          [RigMate Core / Jobs]          <-- Plans, Checkpoints, Document Locks,
+                    |                        Idempotency, Recovery, Receipt verification
+                    v
+          [HostAdapter Protocol]         <-- Dispatches typed HostOperationRequest to host
+```
+
+### Architectural Guarantees for Mesh Preparation
+1. **Module Independence**: Pure geometric diagnostic logic and classification algorithms reside in `rigmate.analysis`, enabling 100% headless test execution on CI machines without Blender.
+2. **Region Revision Safety (`REGION_STALE`)**: A sub-mesh region reference captured at document revision $N$ is strictly invalidated if any topology-changing operation increments revision to $N+1$. Stale vertex or face indices are NEVER blindly re-used.
+3. **Dirty Document Guard**: If an active Blender scene has unsaved changes (`bpy.data.is_dirty == True`), Core halts prior to checkpoint creation and issues `NEEDS_INPUT`, preventing silent snapshotting of stale on-disk `.blend` files.
+4. **AI Data Boundary**: Massive 3D vertex coordinate arrays are NEVER sent over the wire to external LLM providers. AI providers reason strictly over structured diagnostic summaries, finding IDs, and region labels.
+5. **Decoupled 2D Godot Engine Workflow**: 2D Godot companion workflows (sprite animation, 2D bone deformation) remain 100% functional without Blender or 3D mesh modules installed.
+
+
 
